@@ -17,6 +17,7 @@ from utils.logger import setup_logger
 from database import init_db, check_connection
 from modules.diet.diet_records import DietRecord, add_diet_record, get_diet_by_date, get_diet_summary
 from modules.diet.enhanced_nutrition_calculator import EnhancedNutritionCalculator
+from modules.diet.food_database import search_food, get_food_by_name, get_food_categories, get_foods_by_category, calculate_nutrition, init_food_database
 
 # 配置日志
 logger = setup_logger()
@@ -280,9 +281,18 @@ def render_diet_page():
     """渲染饮食营养页面"""
     st.title("🍽️ 饮食营养")
     
-    # 初始化减肥模式
+    # 初始化减肥模式和食物数据库
     if "weight_loss_mode" not in st.session_state:
         st.session_state.weight_loss_mode = False
+    if "food_search_results" not in st.session_state:
+        st.session_state.food_search_results = []
+    if "selected_food" not in st.session_state:
+        st.session_state.selected_food = None
+    if "food_quantity" not in st.session_state:
+        st.session_state.food_quantity = 100
+    
+    # 初始化食物数据库（首次运行）
+    init_food_database()
     
     # 减肥模式开关
     col1, col2, col3 = st.columns([1, 1, 1])
@@ -309,33 +319,105 @@ def render_diet_page():
     with tab1:
         st.markdown("#### 快速记录")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            meal_type_map = {"早餐": "breakfast", "午餐": "lunch", "晚餐": "dinner", "加餐": "snack"}
-            meal_type = st.selectbox("餐次", ["早餐", "午餐", "晚餐", "加餐"])
-            food_name = st.text_input("食物名称")
-            calories = st.number_input("热量 (kcal)", min_value=0, value=0)
+        # 食物搜索
+        search_keyword = st.text_input("🔍 搜索食物", placeholder="输入食物名称，如：米饭、鸡胸肉")
         
-        with col2:
-            protein = st.number_input("蛋白质 (g)", min_value=0, value=0)
-            fat = st.number_input("脂肪 (g)", min_value=0, value=0)
-            carbs = st.number_input("碳水 (g)", min_value=0, value=0)
+        if search_keyword:
+            st.session_state.food_search_results = search_food(search_keyword)
+            if st.session_state.food_search_results:
+                st.markdown("##### 匹配结果")
+                for food in st.session_state.food_search_results:
+                    if st.button(f"{food['food_name']} ({food['category']})"):
+                        st.session_state.selected_food = food
+                        st.session_state.food_quantity = food.get("serving_size", 100)
+                        st.rerun()
         
-        if st.button("添加记录", type="primary"):
-            record = DietRecord(
-                date=date.today().isoformat(),
-                meal_type=meal_type_map[meal_type],
-                food_name=food_name,
-                calories=calories,
-                protein=protein,
-                fat=fat,
-                carbs=carbs
-            )
-            if add_diet_record(record):
-                st.success("记录已添加！")
-                st.rerun()
-            else:
-                st.error("添加失败，请重试")
+        # 显示选中的食物信息
+        if st.session_state.selected_food:
+            food = st.session_state.selected_food
+            st.markdown(f"##### ✅ 已选择: {food['food_name']}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                meal_type_map = {"早餐": "breakfast", "午餐": "lunch", "晚餐": "dinner", "加餐": "snack"}
+                meal_type = st.selectbox("餐次", ["早餐", "午餐", "晚餐", "加餐"])
+                
+                # 默认使用食物的标准分量单位
+                default_unit = food.get("serving_unit", "g")
+                st.session_state.food_quantity = st.number_input(
+                    f"分量 ({default_unit})", 
+                    min_value=0.1, 
+                    value=float(st.session_state.food_quantity),
+                    step=0.1
+                )
+            
+            # 计算营养成分
+            nutrition = calculate_nutrition(food, st.session_state.food_quantity, default_unit)
+            
+            with col2:
+                st.markdown("**营养成分（自动计算）**")
+                st.write(f"热量: {nutrition['calories']} kcal")
+                st.write(f"蛋白质: {nutrition['protein']} g")
+                st.write(f"脂肪: {nutrition['fat']} g")
+                st.write(f"碳水: {nutrition['carbs']} g")
+            
+            notes = st.text_input("备注（可选）")
+            
+            if st.button("添加记录", type="primary"):
+                record = DietRecord(
+                    date=date.today().isoformat(),
+                    meal_type=meal_type_map[meal_type],
+                    food_name=food["food_name"],
+                    food_id=food["id"],
+                    calories=nutrition["calories"],
+                    protein=nutrition["protein"],
+                    fat=nutrition["fat"],
+                    carbs=nutrition["carbs"],
+                    fiber=nutrition["fiber"],
+                    sugar=nutrition["sugar"],
+                    sodium=nutrition["sodium"],
+                    quantity=st.session_state.food_quantity,
+                    unit=default_unit,
+                    notes=notes
+                )
+                if add_diet_record(record):
+                    st.success("记录已添加！")
+                    st.session_state.selected_food = None
+                    st.rerun()
+                else:
+                    st.error("添加失败，请重试")
+        
+        else:
+            # 手动输入模式
+            st.markdown("##### 手动输入（未搜索到食物时使用）")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                meal_type_map = {"早餐": "breakfast", "午餐": "lunch", "晚餐": "dinner", "加餐": "snack"}
+                meal_type = st.selectbox("餐次", ["早餐", "午餐", "晚餐", "加餐"])
+                food_name = st.text_input("食物名称")
+                calories = st.number_input("热量 (kcal)", min_value=0, value=0)
+            
+            with col2:
+                protein = st.number_input("蛋白质 (g)", min_value=0, value=0)
+                fat = st.number_input("脂肪 (g)", min_value=0, value=0)
+                carbs = st.number_input("碳水 (g)", min_value=0, value=0)
+            
+            if st.button("添加记录", type="primary"):
+                record = DietRecord(
+                    date=date.today().isoformat(),
+                    meal_type=meal_type_map[meal_type],
+                    food_name=food_name,
+                    calories=calories,
+                    protein=protein,
+                    fat=fat,
+                    carbs=carbs
+                )
+                if add_diet_record(record):
+                    st.success("记录已添加！")
+                    st.rerun()
+                else:
+                    st.error("添加失败，请重试")
     
     with tab2:
         st.markdown("#### 📊 今日营养统计")

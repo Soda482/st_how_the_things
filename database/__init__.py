@@ -41,6 +41,27 @@ def init_db() -> None:
                 )
             """)
             
+            # 创建食物营养数据库表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS food_database (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    food_name TEXT UNIQUE NOT NULL,
+                    category TEXT,
+                    calories REAL NOT NULL,
+                    protein REAL DEFAULT 0,
+                    fat REAL DEFAULT 0,
+                    carbs REAL DEFAULT 0,
+                    fiber REAL DEFAULT 0,
+                    sugar REAL DEFAULT 0,
+                    sodium REAL DEFAULT 0,
+                    serving_size REAL DEFAULT 100,
+                    serving_unit TEXT DEFAULT 'g',
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             # 创建饮食记录表
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS diet_records (
@@ -48,6 +69,7 @@ def init_db() -> None:
                     date DATE NOT NULL,
                     meal_type TEXT CHECK(meal_type IN ('breakfast', 'lunch', 'dinner', 'snack')) NOT NULL,
                     food_name TEXT NOT NULL,
+                    food_id INTEGER,
                     calories REAL DEFAULT 0,
                     protein REAL DEFAULT 0,
                     fat REAL DEFAULT 0,
@@ -60,7 +82,8 @@ def init_db() -> None:
                     notes TEXT,
                     tags TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (food_id) REFERENCES food_database(id)
                 )
             """)
             
@@ -314,7 +337,8 @@ def execute_query(query: str, params: tuple = (), fetch: str = "all") -> List[Di
             result = cursor.fetchone()
             return dict(result) if result else None
         elif fetch == "count":
-            return cursor.fetchone()[0] if cursor.fetchone() else 0
+            result = cursor.fetchone()
+            return result[0] if result else 0
         else:
             return cursor.fetchall()
 

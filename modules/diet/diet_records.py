@@ -19,6 +19,7 @@ class DietRecord:
     date: str = ""
     meal_type: str = ""  # breakfast, lunch, dinner, snack
     food_name: str = ""
+    food_id: Optional[int] = None
     calories: float = 0
     protein: float = 0
     fat: float = 0
@@ -42,6 +43,7 @@ class DietRecord:
             "date": self.date,
             "meal_type": self.meal_type,
             "food_name": self.food_name,
+            "food_id": self.food_id,
             "calories": self.calories,
             "protein": self.protein,
             "fat": self.fat,
@@ -52,7 +54,7 @@ class DietRecord:
             "quantity": self.quantity,
             "unit": self.unit,
             "notes": self.notes,
-            "tags": self.tags,
+            "tags": self.tags
         }
 
 
@@ -69,11 +71,11 @@ def add_diet_record(record: DietRecord) -> bool:
     try:
         query = """
             INSERT INTO diet_records 
-            (date, meal_type, food_name, calories, protein, fat, carbs, fiber, sugar, sodium, quantity, unit, notes, tags)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (date, meal_type, food_name, food_id, calories, protein, fat, carbs, fiber, sugar, sodium, quantity, unit, notes, tags)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
-            record.date, record.meal_type, record.food_name,
+            record.date, record.meal_type, record.food_name, record.food_id,
             record.calories, record.protein, record.fat, record.carbs,
             record.fiber, record.sugar, record.sodium,
             record.quantity, record.unit, record.notes, record.tags

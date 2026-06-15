@@ -3,6 +3,7 @@ DeepSeek API 客户端
 统一封装 AI 接口调用
 """
 
+import os
 import requests
 import json
 import logging
@@ -20,11 +21,12 @@ class DeepSeekClient:
     
     def __init__(self):
         """初始化"""
-        self.api_key = get_config("deepseek.api_key", "")
+        # 优先从环境变量获取 API key
+        self.api_key = os.environ.get("DEEPSEEK_API_KEY", get_config("deepseek.api_key", ""))
         self.base_url = get_config("deepseek.base_url", "https://api.deepseek.com")
         self.model = get_config("deepseek.model", "deepseek-chat")
         self.timeout = get_config("deepseek.timeout", 10)
-        self.max_retries = get_config("deepseek.max_retries", 1)
+        self.max_retries = get_config("deepseek.max_retries", 3)
     
     def is_configured(self) -> bool:
         """检查是否已配置 API"""

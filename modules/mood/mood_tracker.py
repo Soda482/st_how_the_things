@@ -59,7 +59,7 @@ def add_mood_record(record: MoodRecord) -> bool:
 
 def get_mood_by_date(target_date: str) -> Optional[MoodRecord]:
     """获取指定日期的情绪记录"""
-    query = "SELECT * FROM mood_records WHERE date = ?"
+    query = "SELECT id, date, mood, intensity, triggers, notes, tags FROM mood_records WHERE date = ?"
     result = execute_query(query, (target_date,), fetch="one")
     return MoodRecord(**result) if result else None
 
@@ -67,7 +67,7 @@ def get_mood_by_date(target_date: str) -> Optional[MoodRecord]:
 def get_mood_by_date_range(start_date: str, end_date: str) -> List[MoodRecord]:
     """获取日期范围的情绪记录"""
     query = """
-        SELECT * FROM mood_records 
+        SELECT id, date, mood, intensity, triggers, notes, tags FROM mood_records 
         WHERE date BETWEEN ? AND ?
         ORDER BY date DESC
     """

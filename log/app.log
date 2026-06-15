@@ -27,3 +27,28 @@
 2026-06-15 20:12:01 - life_tracker - ERROR - 应用错误: cannot import name 'EXERCISE_INFO' from 'modules.exercise.exercise_tracker' (C:\Users\27953\Desktop\程序设计与应用\期末作品\st_how_the_things\modules\exercise\exercise_tracker.py)
 2026-06-15 20:32:13 - life_tracker - ERROR - 应用错误: No module named 'utils.quotes'
 2026-06-15 20:32:18 - life_tracker - ERROR - 应用错误: No module named 'utils.quotes'
+2026-06-15 22:51:21 - life_tracker - ERROR - 应用错误: MoodRecord.__init__() got an unexpected keyword argument 'created_at'
+2026-06-15 22:51:26 - life_tracker - ERROR - 应用错误: MoodRecord.__init__() got an unexpected keyword argument 'created_at'
+2026-06-15 22:51:48 - life_tracker - ERROR - 应用错误: MoodRecord.__init__() got an unexpected keyword argument 'created_at'
+2026-06-15 22:51:51 - life_tracker - ERROR - 应用错误: MoodRecord.__init__() got an unexpected keyword argument 'created_at'
+2026-06-15 23:06:49 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0
+2026-06-15 23:11:51 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:14:06 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:14:19 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:19:36 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:19:56 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:20:21 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:20:37 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:24:19 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:24:30 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:24:32 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:24:34 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:24:36 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:24:39 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:34:11 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:34:17 - life_tracker - ERROR - 应用错误: unterminated string literal (detected at line 20) (real_coach.py, line 20)
+2026-06-15 23:36:08 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:36:17 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:36:22 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%
+2026-06-15 23:37:18 - ai.deepseek_client - INFO - DeepSeek API 调用成功
+2026-06-15 23:40:14 - life_tracker - INFO - 仪表盘运动数据 - 步数: 0, 热量: 366.0, 进度: 73%

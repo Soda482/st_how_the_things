@@ -18,6 +18,11 @@ from database import init_db, check_connection
 from modules.diet.diet_records import DietRecord, add_diet_record, get_diet_by_date, get_diet_summary
 from modules.diet.enhanced_nutrition_calculator import EnhancedNutritionCalculator
 from modules.diet.food_database import search_food, get_food_by_name, get_food_categories, get_foods_by_category, calculate_nutrition, init_food_database
+from modules.exercise.exercise_tracker import get_exercise_by_date, get_exercise_summary, get_today_steps, get_today_calories, EXERCISE_INFO
+from modules.sleep.sleep_tracker import get_sleep_by_date, get_sleep_summary, get_today_sleep_duration
+from modules.expense.expense_tracker import get_expenses_by_date, get_expense_summary, get_today_expense
+from modules.mood.mood_tracker import get_mood_by_date, get_mood_summary
+from modules.mood.emotion_model import get_mood_emoji, get_mood_color
 
 # 配置日志
 logger = setup_logger()
@@ -45,49 +50,169 @@ def init_session_state():
 
 
 def load_custom_css():
-    """加载自定义样式"""
+    """加载自定义样式 - 让主题颜色真正体现在页面上"""
     theme = st.session_state.get("theme", "purple")
     
-    theme_css = ""
-    if theme == "fresh_blue":
-        theme_css = """
-        <style>
-        [data-theme="fresh_blue"] {
-            --primary: #0EA5E9;
-            --bg-primary: #FFFFFF;
-            --bg-secondary: #F0F9FF;
-            --bg-card: #FFFFFF;
-            --text-primary: #0C4A6E;
-            --text-secondary: #075985;
+    # 主题颜色配置
+    themes_config = {
+        "purple": {
+            "primary": "#9333EA",
+            "bg_light": "#F3E8FF",  # 淡紫色背景
+            "bg_card": "#FAF5FF",
+            "text_primary": "#581C87",
+            "accent": "#A855F7"
+        },
+        "fresh_blue": {
+            "primary": "#0EA5E9",
+            "bg_light": "#EFF6FF",  # 淡蓝色背景
+            "bg_card": "#F0F9FF",
+            "text_primary": "#1E3A8A",
+            "accent": "#38BDF8"
+        },
+        "fresh_green": {
+            "primary": "#10B981",
+            "bg_light": "#ECFDF5",  # 淡绿色背景
+            "bg_card": "#F0FDF4",
+            "text_primary": "#064E3B",
+            "accent": "#34D399"
+        },
+        "warm_orange": {
+            "primary": "#F97316",
+            "bg_light": "#FFF7ED",  # 淡橙色背景
+            "bg_card": "#FFFAF5",
+            "text_primary": "#7C2D12",
+            "accent": "#FB923C"
         }
-        </style>
-        """
-    elif theme == "fresh_green":
-        theme_css = """
-        <style>
-        [data-theme="fresh_green"] {
-            --primary: #10B981;
-            --bg-primary: #FFFFFF;
-            --bg-secondary: #F0FDF4;
-            --bg-card: #FFFFFF;
-            --text-primary: #064E3B;
-            --text-secondary: #047857;
-        }
-        </style>
-        """
-    elif theme == "warm_orange":
-        theme_css = """
-        <style>
-        [data-theme="warm_orange"] {
-            --primary: #F97316;
-            --bg-primary: #FFFFFF;
-            --bg-secondary: #FFF7ED;
-            --bg-card: #FFFFFF;
-            --text-primary: #7C2D12;
-            --text-secondary: #9A3412;
-        }
-        </style>
-        """
+    }
+    
+    config = themes_config.get(theme, themes_config["purple"])
+    
+    # 应用主题样式到整个页面
+    theme_css = f"""
+    <style>
+    /* 全局背景 - 淡淡的主题色 */
+    .stApp {{
+        background: linear-gradient(135deg, {config['bg_light']} 0%, #FFFFFF 100%);
+    }}
+    
+    /* 主容器背景 */
+    .main .block-container {{
+        background: rgba(255, 255, 255, 0.95);
+        padding-top: 2rem;
+    }}
+    
+    /* 侧边栏背景 */
+    [data-testid="stSidebar"] {{
+        background: linear-gradient(180deg, {config['bg_light']} 0%, #FFFFFF 100%);
+    }}
+    
+    /* 标题颜色 */
+    h1, h2, h3 {{
+        color: {config['text_primary']} !important;
+    }}
+    
+    /* 卡片样式 */
+    .stMetric, .stContainer {{
+        background: {config['bg_card']} !important;
+        border-radius: 12px !important;
+        padding: 16px !important;
+        border: 1px solid {config['primary']}20 !important;
+    }}
+    
+    /* 按钮样式 */
+    .stButton > button {{
+        background: {config['primary']} !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: none !important;
+        transition: all 0.3s ease !important;
+    }}
+    
+    .stButton > button:hover {{
+        background: {config['accent']} !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 12px {config['primary']}40 !important;
+    }}
+    
+    /* 进度条颜色 */
+    .stProgress > div > div {{
+        background: {config['primary']} !important;
+    }}
+    
+    /* 选择框样式 */
+    .stSelectbox > div > div {{
+        border-color: {config['primary']} !important;
+    }}
+    
+    /* 标签页样式 */
+    .stTabs [data-baseweb="tab-list"] {{
+        gap: 8px;
+    }}
+    
+    .stTabs [data-baseweb="tab"] {{
+        background: {config['bg_card']};
+        border-radius: 8px 8px 0 0;
+        color: {config['text_primary']};
+    }}
+    
+    .stTabs [aria-selected="true"] {{
+        background: {config['primary']} !important;
+        color: white !important;
+    }}
+    
+    /* 输入框样式 */
+    .stTextInput > div > div > input {{
+        border-color: {config['primary']} !important;
+        border-radius: 8px !important;
+    }}
+    
+    .stTextInput > div > div > input:focus {{
+        border-color: {config['accent']} !important;
+        box-shadow: 0 0 0 3px {config['primary']}20 !important;
+    }}
+    
+    /* 数字输入框 */
+    .stNumberInput > div > div > input {{
+        border-color: {config['primary']} !important;
+        border-radius: 8px !important;
+    }}
+    
+    /* 分隔线 */
+    .stDivider {{
+        border-color: {config['primary']}30 !important;
+    }}
+    
+    /* 成功消息 */
+    .stSuccess {{
+        background: {config['bg_card']} !important;
+        border-left: 4px solid {config['primary']} !important;
+    }}
+    
+    /* 信息消息 */
+    .stInfo {{
+        background: {config['bg_light']} !important;
+        border-left: 4px solid {config['accent']} !important;
+    }}
+    
+    /* 表格样式 */
+    .stDataFrame {{
+        border: 1px solid {config['primary']}20 !important;
+        border-radius: 8px !important;
+    }}
+    
+    /* 图表容器 */
+    .stPlotlyChart {{
+        border-radius: 12px !important;
+        background: {config['bg_card']} !important;
+        padding: 8px !important;
+    }}
+    
+    /* 卡片容器通用样式 */
+    div[data-testid="stVerticalBlock"] > div {{
+        border-radius: 12px;
+    }}
+    </style>
+    """
     
     st.markdown(theme_css, unsafe_allow_html=True)
 
@@ -219,18 +344,27 @@ def main():
 
 
 def render_dashboard():
-    """渲染仪表盘页面"""
+    """渲染仪表盘页面 - 实时数据更新"""
     st.title("🌟 你今天活得怎么样？")
     st.markdown(f"**{get_ai_greeting()}**")
+    
+    # 获取今日日期
+    today = date.today()
+    today_str = today.isoformat()
     
     # 日期选择器
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        selected_date = st.date_input("选择日期", date.today())
+        selected_date = st.date_input("选择日期", today)
     with col2:
-        st.metric("今日摄入", "0", "0")
+        # 获取今日热量摄入
+        daily_summary = get_diet_summary(today_str)
+        today_calories = daily_summary.get("total_calories", 0)
+        st.metric("今日摄入", f"{today_calories:.0f} kcal", "")
     with col3:
-        st.metric("今日支出", "¥0", "¥0")
+        # 获取今日支出
+        today_expense = get_today_expense()
+        st.metric("今日支出", f"¥{today_expense:.2f}", "")
     
     st.divider()
     
@@ -239,44 +373,165 @@ def render_dashboard():
     
     col1, col2, col3, col4 = st.columns(4)
     
+    # 获取实时数据
+    calories = daily_summary.get("total_calories", 0)
+    calories_target = 2000  # 默认目标，可从配置获取
+    calories_pct = min(int(calories / calories_target * 100), 100)
+    
+    # 运动数据：步数和消耗热量
+    steps = get_today_steps()
+    exercise_calories = get_today_calories()
+    steps_target = 10000
+    calories_target = 500  # 每日运动消耗热量目标
+    
+    # 智能显示运动数据
+    if exercise_calories > 0 and steps > 0:
+        # 有步数和热量
+        exercise_value = f"{steps}步 · {exercise_calories:.0f}kcal"
+        exercise_pct = min(int(exercise_calories / calories_target * 100), 100)
+    elif exercise_calories > 0:
+        # 只有热量
+        exercise_value = f"{exercise_calories:.0f} kcal"
+        exercise_pct = min(int(exercise_calories / calories_target * 100), 100)
+    elif steps > 0:
+        # 只有步数
+        exercise_value = f"{steps} 步"
+        exercise_pct = min(int(steps / steps_target * 100), 100)
+    else:
+        # 没有运动
+        exercise_value = "暂无记录"
+        exercise_pct = 0
+    
+    # 调试输出
+    logger.info(f"仪表盘运动数据 - 步数: {steps}, 热量: {exercise_calories}, 进度: {exercise_pct}%")
+    
+    sleep_hours = get_today_sleep_duration()
+    sleep_target = 8
+    sleep_pct = min(int(sleep_hours / sleep_target * 100), 100)
+    
+    expense = today_expense
+    expense_target = 3000 / 30  # 日均预算
+    expense_pct = min(int(expense / expense_target * 100), 100)
+    
     metrics = [
-        ("🔥 热量", "0/2000", "0%", "#EF4444"),
-        ("🏃 运动", "0/10000", "0%", "#10B981"),
-        ("😴 睡眠", "0/8h", "0%", "#3B82F6"),
-        ("💰 预算", "¥0/¥3000", "0%", "#F59E0B")
+        ("🔥 热量", f"{calories:.0f}/{calories_target}", f"{calories_pct}%", "#EF4444"),
+        ("🏃 运动", exercise_value, f"{exercise_pct}%", "#10B981"),
+        ("😴 睡眠", f"{sleep_hours:.1f}/{sleep_target}h", f"{sleep_pct}%", "#3B82F6"),
+        ("💰 预算", f"¥{expense:.0f}/¥{expense_target:.0f}", f"{expense_pct}%", "#F59E0B")
     ]
     
     for col, (label, value, pct, color) in zip([col1, col2, col3, col4], metrics):
         with col:
             st.markdown(f"""
-            <div class="card" style="text-align: center;">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">{label}</div>
-                <div style="font-size: 1.5rem; font-weight: bold;">{value}</div>
-                <div class="progress-bar" style="margin-top: 0.5rem;">
-                    <div class="fill" style="width: {pct}; background: {color};"></div>
+            <div style="text-align: center; padding: 16px; background: #FAFAFA; border-radius: 12px;">
+                <div style="font-size: 1.1rem; margin-bottom: 0.5rem; color: #666;">{label}</div>
+                <div style="font-size: 1.5rem; font-weight: bold; color: #1a1a1a;">{value}</div>
+                <div style="height: 6px; background: #E5E5E5; border-radius: 3px; margin-top: 10px; overflow: hidden;">
+                    <div style="height: 100%; width: {pct}; background: {color}; border-radius: 3px; transition: width 0.3s ease;"></div>
                 </div>
+                <div style="font-size: 0.85rem; color: #888; margin-top: 8px;">{pct}</div>
             </div>
             """, unsafe_allow_html=True)
     
     st.divider()
     
-    # 动态时间轴
-    st.markdown("### ⏰ 今日时间轴")
+    # 动态时间轴 - 所有板块实时数据
+    st.markdown("### ⏰ 今日记录")
     
-    st.info("📝 暂无今日记录，开始记录你的生活吧！")
+    # 获取今日各模块记录
+    diet_records = get_diet_by_date(today_str)
+    exercise_records = get_exercise_by_date(today_str)
+    sleep_records = get_sleep_by_date(today_str)
+    mood_records = get_mood_by_date(today_str)
+    expense_records = get_expenses_by_date(today_str)
+    
+    has_any_records = any([
+        len(diet_records) > 0,
+        len(exercise_records) > 0,
+        sleep_records is not None,
+        mood_records is not None,
+        len(expense_records) > 0
+    ])
+    
+    if has_any_records:
+        # 使用标签页展示各板块
+        tabs = st.tabs(["🍽️ 饮食", "🏃 运动", "😴 睡眠", "❤️ 情绪", "💰 支出"])
+        
+        with tabs[0]:
+            # 饮食记录
+            if diet_records:
+                for record in diet_records:
+                    meal_type = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐", "snack": "加餐"}.get(record.meal_type, record.meal_type)
+                    st.markdown(f"- **{meal_type}**: {record.food_name} ({record.quantity}g) - {record.calories:.0f} kcal")
+            else:
+                st.info("暂无今日饮食记录")
+        
+        with tabs[1]:
+            # 运动记录
+            if exercise_records:
+                for record in exercise_records:
+                    emoji = EXERCISE_INFO.get(record.exercise_type, {}).get("emoji", "🏃")
+                    distance_str = f"{record.distance}公里" if record.distance else ""
+                    duration_str = f"{record.duration}分钟" if record.duration else ""
+                    calories_str = f"消耗{record.calories:.0f}千卡" if record.calories else ""
+                    parts = [distance_str, duration_str, calories_str]
+                    info_str = " / ".join([p for p in parts if p]) or "已记录"
+                    st.markdown(f"- **{emoji} {record.exercise_type}**: {info_str}")
+            else:
+                st.info("暂无今日运动记录")
+        
+        with tabs[2]:
+            # 睡眠记录
+            if sleep_records:
+                st.markdown(f"- **入睡时间**: {sleep_records.bedtime}")
+                st.markdown(f"- **起床时间**: {sleep_records.wakeup_time}")
+                st.markdown(f"- **睡眠时长**: {sleep_records.duration}小时")
+                st.markdown(f"- **睡眠质量**: {sleep_records.quality}")
+            else:
+                st.info("暂无今日睡眠记录")
+        
+        with tabs[3]:
+            # 情绪记录
+            if mood_records:
+                emoji = get_mood_emoji(mood_records.mood)
+                st.markdown(f"- **情绪**: {emoji} {mood_records.mood} (强度: {mood_records.intensity}/5)")
+                if mood_records.triggers:
+                    triggers = mood_records.triggers.split(",")
+                    st.markdown(f"- **触发因素**: {', '.join(triggers)}")
+                if mood_records.notes:
+                    st.markdown(f"- **备注**: {mood_records.notes}")
+            else:
+                st.info("暂无今日情绪记录")
+        
+        with tabs[4]:
+            # 支出记录
+            if expense_records:
+                for record in expense_records:
+                    item_name = record.description or record.category
+                    st.markdown(f"- **{record.category}**: {item_name} - ¥{record.amount:.2f}")
+            else:
+                st.info("暂无今日支出记录")
+    else:
+        st.info("📝 暂无今日记录，开始记录你的生活吧！")
     
     # 成就徽章展示区
     st.markdown("### 🏆 成就徽章")
     
     badge_col1, badge_col2, badge_col3, badge_col4 = st.columns(4)
-    badges = ["初学者", "坚持3天", "健康达人", "省钱高手"]
+    badges = [
+        {"name": "初学者", "icon": "🌱", "unlocked": True},
+        {"name": "坚持3天", "icon": "🔥", "unlocked": False},
+        {"name": "健康达人", "icon": "💪", "unlocked": False},
+        {"name": "省钱高手", "icon": "💰", "unlocked": False}
+    ]
     
     for col, badge in zip([badge_col1, badge_col2, badge_col3, badge_col4], badges):
         with col:
+            opacity = 1 if badge["unlocked"] else 0.4
             st.markdown(f"""
-            <div style="text-align: center; opacity: 0.5;">
-                <div style="font-size: 2rem;">🔒</div>
-                <div style="font-size: 0.85rem; color: var(--text-secondary);">{badge}</div>
+            <div style="text-align: center; opacity: {opacity};">
+                <div style="font-size: 2rem;">{badge["icon"]}</div>
+                <div style="font-size: 0.85rem; color: {'#1a1a1a' if badge['unlocked'] else '#999'}; margin-top: 4px;">{badge["name"]}</div>
             </div>
             """, unsafe_allow_html=True)
 
@@ -2083,24 +2338,237 @@ def render_mood_page():
 
 
 def render_ai_page():
-    """渲染 AI 助手页面"""
+    """渲染 AI 生活助手页面 - 支持真实 AI 和本地 AI"""
+    from ai.local_coach import (
+        get_local_coach, generate_daily_brief, generate_life_review,
+        chat_tree_hole, get_suggestion, calculate_energy_score
+    )
+    from ai.real_coach import get_real_coach
+    
     st.title("🤖 AI 生活助手")
     
-    st.info("DeepSeek API 集成中...")
+    # API 配置区域
+    with st.expander("⚙️ AI 配置（可选）", expanded=False):
+        st.markdown("配置 DeepSeek API 以使用真实 AI 对话功能")
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            api_key = st.text_input(
+                "API Key", 
+                type="password",
+                placeholder="sk-xxxxxxxxxxxxxxxx",
+                help="在 DeepSeek 官网获取 API Key"
+            )
+        with col2:
+            model = st.selectbox(
+                "模型选择",
+                ["deepseek-chat", "deepseek-coder"],
+                index=0
+            )
+        
+        # 保存配置按钮
+        if st.button("保存配置"):
+            if api_key:
+                st.session_state["ai_api_key"] = api_key
+                st.session_state["ai_model"] = model
+                st.success("✅ 配置已保存")
+            else:
+                st.warning("请输入 API Key")
+        
+        # 显示当前状态
+        saved_key = st.session_state.get("ai_api_key", "")
+        if saved_key:
+            st.info(f"✅ 已配置 API Key: {saved_key[:8]}...{saved_key[-4:]} | 模型: {st.session_state.get('ai_model', 'deepseek-chat')}")
     
-    # AI 功能选项
-    ai_features = {
-        "📋 每日简报": "生成今日生活总结",
-        "💬 生活锐评": "获得今日点评",
-        "🌳 心情树洞": "倾诉与陪伴",
-        "💡 智能建议": "获取个性化建议"
+    # 判断使用哪种模式
+    use_real_ai = bool(st.session_state.get("ai_api_key"))
+    
+    # 模式提示
+    if use_real_ai:
+        st.success("🚀 **真实 AI 模式** - 使用 DeepSeek API 进行智能分析")
+    else:
+        st.info("💡 **本地模式** - 使用预设规则生成建议（配置 API Key 可解锁真实 AI）")
+    
+    # 人格选择
+    personas = ["佛系", "温柔", "励志", "理性", "幽默", "毒舌"]
+    selected_persona = st.selectbox("选择 AI 人格", personas, index=1)
+    
+    # 显示人格介绍
+    persona_desc = {
+        "佛系": "🧘 顺其自然、内心平静，用禅意看待生活",
+        "温柔": "❤️ 温暖友善、善解人意，给予支持和鼓励",
+        "励志": "💪 充满正能量、激励人心，激发潜能",
+        "理性": "🧠 数据分析、逻辑推理，客观理性",
+        "幽默": "😄 轻松有趣、善于调侃，化解烦恼",
+        "毒舌": "🔥 犀利直接、一针见血，点醒现实"
     }
+    st.markdown(f"**当前人格：{persona_desc[selected_persona]}**")
     
-    for feature, desc in ai_features.items():
-        with st.expander(feature):
-            st.write(desc)
-            if st.button(f"启动 {feature.split()[1]}", key=feature):
-                st.warning("AI 功能开发中...")
+    # 能量值展示
+    st.markdown("---")
+    st.markdown("### ⚡ 今日能量值")
+    energy_data = calculate_energy_score()
+    st.metric(f"{energy_data['emoji']} 生活能量值", f"{energy_data['score']}分", energy_data['status'])
+    
+    # 能量值分布
+    breakdown = energy_data['breakdown']
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        st.metric("🍽️ 饮食", breakdown['diet'])
+    with col2:
+        st.metric("🏃 运动", breakdown['exercise'])
+    with col3:
+        st.metric("😴 睡眠", breakdown['sleep'])
+    with col4:
+        st.metric("❤️ 情绪", breakdown['mood'])
+    with col5:
+        st.metric("💰 消费", breakdown['expense'])
+    
+    # AI 功能选项卡
+    if use_real_ai:
+        # 真实 AI 模式 - 更多功能
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📋 每日简报", "🔍 分类分析", "💬 自由对话", "📊 综合分析", "💡 本地建议"])
+        
+        # 获取真实 AI 教练
+        coach = get_real_coach(
+            st.session_state.get("ai_api_key"),
+            st.session_state.get("ai_model", "deepseek-chat"),
+            selected_persona
+        )
+        
+        with tab1:
+            st.markdown("### 📋 每日简报")
+            st.markdown("AI 根据今日饮食、运动、睡眠、情绪、消费数据生成个性化简报")
+            if st.button("生成今日简报", key="brief_btn"):
+                with st.spinner("AI 正在分析您的数据..."):
+                    brief = coach.generate_daily_brief()
+                    st.markdown(brief)
+        
+        with tab2:
+            st.markdown("### 🔍 分类分析")
+            st.markdown("选择一个维度，AI 将进行深度分析")
+            categories = ["饮食", "运动", "睡眠", "情绪", "消费"]
+            selected_category = st.selectbox("选择分析类别", categories, key="category_select")
+            
+            if st.button("开始分析", key="analyze_btn"):
+                with st.spinner(f"AI 正在分析您的{selected_category}数据..."):
+                    analysis = coach.analyze_category(selected_category)
+                    st.markdown(analysis)
+        
+        with tab3:
+            st.markdown("### 💬 自由对话")
+            st.markdown("和 AI 聊聊生活、健康、情绪等话题")
+            
+            # 聊天历史
+            if "chat_history" not in st.session_state:
+                st.session_state.chat_history = []
+            
+            # 显示历史消息
+            for msg in st.session_state.chat_history:
+                with st.chat_message(msg["role"]):
+                    st.write(msg["content"])
+            
+            # 输入框
+            user_input = st.chat_input("说点什么...")
+            if user_input:
+                # 添加用户消息
+                st.session_state.chat_history.append({"role": "user", "content": user_input})
+                with st.chat_message("user"):
+                    st.write(user_input)
+                
+                # AI 回复
+                with st.chat_message("assistant"):
+                    with st.spinner("思考中..."):
+                        response = coach.chat(user_input, st.session_state.chat_history[:-1])
+                        st.write(response)
+                        st.session_state.chat_history.append({"role": "assistant", "content": response})
+            
+            # 清空历史
+            if st.button("清空对话"):
+                st.session_state.chat_history = []
+                st.rerun()
+        
+        with tab4:
+            st.markdown("### 📊 综合分析")
+            st.markdown("AI 对您的生活进行全面分析，给出评分和改进建议")
+            if st.button("开始综合分析", key="comprehensive_btn"):
+                with st.spinner("AI 正在进行全面分析..."):
+                    analysis = coach.get_comprehensive_analysis()
+                    st.markdown(analysis)
+        
+        with tab5:
+            st.markdown("### 💡 本地建议")
+            st.markdown("基于预设规则的快速建议（无需 AI）")
+            categories = ["全部", "饮食", "运动", "睡眠", "情绪", "消费"]
+            selected_category = st.selectbox("选择建议类别", categories, key="local_category")
+            
+            category_map = {
+                "全部": None,
+                "饮食": "diet",
+                "运动": "exercise",
+                "睡眠": "sleep",
+                "情绪": "mood",
+                "消费": "expense"
+            }
+            
+            if st.button("获取本地建议", key="local_suggest_btn"):
+                with st.spinner("生成中..."):
+                    suggestion = get_suggestion(category_map[selected_category], selected_persona)
+                    st.success(suggestion)
+    
+    else:
+        # 本地模式 - 基础功能
+        tab1, tab2, tab3, tab4 = st.tabs(["📋 每日简报", "💬 生活锐评", "🌳 心情树洞", "💡 智能建议"])
+        
+        # 获取本地教练
+        coach = get_local_coach(selected_persona)
+        
+        with tab1:
+            st.markdown("### 📋 每日简报")
+            st.info("💡 配置 API Key 后可解锁 AI 智能简报")
+            if st.button("生成本地简报"):
+                with st.spinner("生成中..."):
+                    brief = generate_daily_brief(selected_persona)
+                    st.success(brief)
+        
+        with tab2:
+            st.markdown("### 💬 生活锐评")
+            st.info("💡 配置 API Key 后可解锁 AI 深度分析")
+            if st.button("获取生活锐评"):
+                with st.spinner("生成中..."):
+                    review = generate_life_review(selected_persona)
+                    st.info(review)
+        
+        with tab3:
+            st.markdown("### 🌳 心情树洞")
+            st.info("💡 配置 API Key 后可解锁 AI 自由对话")
+            user_input = st.text_area("说说你的心里话...", height=100)
+            if st.button("发送"):
+                if user_input.strip():
+                    with st.spinner("生成中..."):
+                        response = chat_tree_hole(user_input, selected_persona)
+                        st.chat_message("assistant").write(response)
+                else:
+                    st.warning("请输入内容")
+        
+        with tab4:
+            st.markdown("### 💡 智能建议")
+            categories = ["全部", "饮食", "运动", "睡眠", "情绪", "消费"]
+            selected_category = st.selectbox("选择建议类别", categories)
+            
+            category_map = {
+                "全部": None,
+                "饮食": "diet",
+                "运动": "exercise",
+                "睡眠": "sleep",
+                "情绪": "mood",
+                "消费": "expense"
+            }
+            
+            if st.button("获取建议"):
+                with st.spinner("生成中..."):
+                    suggestion = get_suggestion(category_map[selected_category], selected_persona)
+                    st.success(suggestion)
 
 
 def render_settings_page():

@@ -172,7 +172,7 @@ def add_exercise_record(record: ExerciseRecord) -> bool:
 
 def get_exercise_by_date(target_date: str) -> List[ExerciseRecord]:
     """获取指定日期的运动记录"""
-    query = "SELECT * FROM exercise_records WHERE date = ? ORDER BY id DESC"
+    query = "SELECT id, date, exercise_type, duration, calories, heart_rate_avg, heart_rate_max, steps, distance, met, pace, notes FROM exercise_records WHERE date = ? ORDER BY id DESC"
     results = execute_query(query, (target_date,))
     return [ExerciseRecord(**r) for r in results]
 
@@ -189,6 +189,18 @@ def get_exercise_summary(target_date: str) -> Dict:
         WHERE date = ?
     """
     result = execute_query(query, (target_date,), fetch="one")
+    
+    # 调试输出
+    logger.info(f"运动汇总查询 - 日期: {target_date}, 结果: {result}")
+    
+    if result is None:
+        return {
+            "total_duration": 0,
+            "total_calories": 0,
+            "total_steps": 0,
+            "total_distance": 0
+        }
+    
     return {
         "total_duration": result["total_duration"] or 0,
         "total_calories": result["total_calories"] or 0,
@@ -312,6 +324,24 @@ def delete_exercise_record(record_id: int) -> bool:
     except Exception as e:
         logger.error(f"删除运动记录失败: {e}")
         return False
+
+
+def get_today_steps() -> int:
+    """获取今日步数"""
+    today = date.today().isoformat()
+    result = get_exercise_summary(today)
+    steps = result.get("total_steps", 0) or 0
+    logger.info(f"今日步数查询 - 日期: {today}, 步数: {steps}")
+    return steps
+
+
+def get_today_calories() -> float:
+    """获取今日运动消耗热量"""
+    today = date.today().isoformat()
+    result = get_exercise_summary(today)
+    calories = result.get("total_calories", 0) or 0
+    logger.info(f"今日热量查询 - 日期: {today}, 热量: {calories}")
+    return calories
 
 
 def check_hydration_reminder(target_date: str) -> bool:

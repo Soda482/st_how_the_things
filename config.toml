@@ -17,11 +17,12 @@ encryption_key = ""
 
 [deepseek]
 # DeepSeek API 配置
-api_key = ""
+# 在此处填入您的 API key，配置后即可直接使用 AI 功能
+api_key = "your-api-key-here"
 base_url = "https://api.deepseek.com"
 model = "deepseek-chat"
 timeout = 10
-max_retries = 1
+max_retries = 3
 
 [app]
 # 应用配置

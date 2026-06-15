@@ -289,6 +289,18 @@ def get_monthly_sleep_summary(year: int, month: int) -> List[Dict]:
     return results
 
 
+def get_today_sleep_duration() -> float:
+    """获取今日睡眠时长"""
+    today = date.today().isoformat()
+    query = """
+        SELECT SUM(duration) as total_duration
+        FROM sleep_records
+        WHERE date = ?
+    """
+    result = execute_query(query, (today,), fetch="one")
+    return round(result["total_duration"], 1) if result and result["total_duration"] else 0
+
+
 def get_average_sleep(days: int = 7) -> float:
     """
     获取平均睡眠时长

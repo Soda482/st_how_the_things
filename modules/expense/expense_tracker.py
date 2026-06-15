@@ -119,7 +119,7 @@ def add_expense_record(record: ExpenseRecord) -> bool:
 
 def get_expenses_by_date(target_date: str) -> List[ExpenseRecord]:
     """获取指定日期的消费记录"""
-    query = "SELECT * FROM expense_records WHERE date = ? ORDER BY id DESC"
+    query = "SELECT id, date, amount, category, subcategory, description, payment_method, source, notes, tags FROM expense_records WHERE date = ? ORDER BY id DESC"
     results = execute_query(query, (target_date,))
     return [ExpenseRecord(**r) for r in results]
 
@@ -127,7 +127,7 @@ def get_expenses_by_date(target_date: str) -> List[ExpenseRecord]:
 def get_expenses_by_month(year: int, month: int) -> List[ExpenseRecord]:
     """获取指定月份的消费记录"""
     query = """
-        SELECT * FROM expense_records 
+        SELECT id, date, amount, category, subcategory, description, payment_method, source, notes, tags FROM expense_records 
         WHERE strftime('%Y', date) = ? AND strftime('%m', date) = ?
         ORDER BY date DESC
     """
@@ -341,6 +341,18 @@ def get_expense_trend(days: int = 30) -> List[Dict[str, Any]]:
     """
     results = execute_query(query, (str(days),))
     return results
+
+
+def get_today_expense() -> float:
+    """获取今日支出"""
+    today = date.today().isoformat()
+    query = """
+        SELECT SUM(amount) as total
+        FROM expense_records
+        WHERE date = ?
+    """
+    result = execute_query(query, (today,), fetch="one")
+    return result["total"] if result and result["total"] else 0
 
 
 def get_category_spent(category: str, year: int, month: int) -> float:

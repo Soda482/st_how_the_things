@@ -1632,6 +1632,10 @@ def render_sleep_page():
 def render_mood_page():
     """渲染情绪日记页面"""
     import random
+    from datetime import datetime, timedelta
+    import calendar
+    from database import get_connection
+    from modules.mood.emotion_model import MOOD_TYPES, get_mood_color, get_mood_emoji
     from utils.quotes import LIFE_QUOTES
     
     st.title("💭 情绪日记")
@@ -1640,21 +1644,442 @@ def render_mood_page():
     quote = random.choice(LIFE_QUOTES)
     st.markdown(f"### ✨ {quote}")
     
-    st.markdown("#### 今日心情")
+    # 创建标签页
+    tab1, tab2, tab3 = st.tabs(["📝 记录心情", "📅 情绪日历", "🎵 愉悦推荐"])
     
-    moods = ["😊 开心", "😌 平静", "😫 疲惫", "😰 焦虑", "😢 悲伤", "😠 愤怒", "🤩 兴奋", "😕 迷茫"]
+    with tab1:
+        st.markdown("#### 今日心情")
+        
+        # 情绪选择
+        mood_options = list(MOOD_TYPES.keys())
+        selected_mood = st.selectbox("🎭 选择情绪", mood_options)
+        
+        # 显示选中情绪的emoji和描述
+        mood_info = MOOD_TYPES[selected_mood]
+        st.markdown(f"{mood_info['emoji']} *{mood_info['description']}*")
+        
+        # 情绪强度
+        intensity = st.slider("📊 情绪强度", 1, 5, 3, 
+                             help="1=很弱，5=很强")
+        st.caption(f"当前强度: {'●' * intensity}{'○' * (5-intensity)}")
+        
+        # 触发因素
+        triggers = st.multiselect("⚡ 可能的原因（可多选）", 
+                                  ["💼 工作", "📚 学习", "👥 人际关系", "💪 健康", 
+                                   "🏠 家庭", "❤️ 感情", "💰 经济", "😴 睡眠", "🌤️ 天气", "🔮 其他"])
+        
+        # 详细记录
+        notes = st.text_area("💭 记录一下今天发生了什么（可选）", 
+                            height=100,
+                            placeholder="写下你的感受...")
+        
+        # 保存按钮
+        if st.button("💾 保存心情", type="primary", use_container_width=True):
+            today = datetime.now().strftime("%Y-%m-%d")
+            try:
+                with get_connection() as conn:
+                    cursor = conn.cursor()
+                    # 检查今天是否已有记录
+                    cursor.execute("SELECT id FROM mood_records WHERE date = ?", (today,))
+                    existing = cursor.fetchone()
+                    
+                    if existing:
+                        # 更新记录
+                        cursor.execute("""
+                            UPDATE mood_records 
+                            SET mood = ?, intensity = ?, triggers = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+                            WHERE date = ?
+                        """, (selected_mood, intensity, ",".join(triggers), notes, today))
+                    else:
+                        # 新增记录
+                        cursor.execute("""
+                            INSERT INTO mood_records (date, mood, intensity, triggers, notes)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (today, selected_mood, intensity, ",".join(triggers), notes))
+                    
+                    conn.commit()
+                    st.success(f"✅ 心情已保存！{mood_info['emoji']}")
+                    st.balloons()
+            except Exception as e:
+                st.error(f"保存失败: {str(e)}")
     
-    selected_mood = st.selectbox("选择情绪", moods)
-    intensity = st.slider("情绪强度", 1, 5, 3)
-    notes = st.text_area("记录一下 (可选)", height=100)
+    with tab2:
+        st.markdown("#### 📅 情绪日历")
+        
+        # 选择月份
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            now = datetime.now()
+            selected_year = st.selectbox("年份", range(now.year-2, now.year+1), index=0)
+            selected_month = st.selectbox("月份", range(1, 13), index=now.month-1)
+        
+        # 获取该月的情绪记录
+        month_start = f"{selected_year}-{selected_month:02d}-01"
+        if selected_month == 12:
+            month_end = f"{selected_year+1}-01-01"
+        else:
+            month_end = f"{selected_year}-{selected_month+1:02d}-01"
+        
+        try:
+            with get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT date, mood, intensity 
+                    FROM mood_records 
+                    WHERE date >= ? AND date < ?
+                    ORDER BY date
+                """, (month_start, month_end))
+                mood_data = {row[0]: {"mood": row[1], "intensity": row[2]} 
+                           for row in cursor.fetchall()}
+        except Exception as e:
+            mood_data = {}
+            st.error(f"读取数据失败: {str(e)}")
+        
+        # 绘制日历
+        cal = calendar.Calendar(firstweekday=6)  # 周日开始
+        month_days = cal.monthdayscalendar(selected_year, selected_month)
+        
+        # 显示星期标题
+        week_cols = st.columns(7)
+        weekdays = ["日", "一", "二", "三", "四", "五", "六"]
+        for i, day in enumerate(weekdays):
+            with week_cols[i]:
+                st.markdown(f"**{day}**")
+        
+        # 显示日历格子
+        mood_colors = {
+            "开心": "#FFD700", "平静": "#90EE90", "兴奋": "#FF69B4",
+            "疲惫": "#D3D3D3", "焦虑": "#FFA500", "悲伤": "#4682B4",
+            "愤怒": "#FF4500", "迷茫": "#9370DB"
+        }
+        
+        for week in month_days:
+            cols = st.columns(7)
+            for i, day in enumerate(week):
+                with cols[i]:
+                    if day == 0:
+                        st.write("")
+                    else:
+                        date_str = f"{selected_year}-{selected_month:02d}-{day:02d}"
+                        if date_str in mood_data:
+                            mood = mood_data[date_str]["mood"]
+                            intensity = mood_data[date_str]["intensity"]
+                            color = mood_colors.get(mood, "#808080")
+                            emoji = get_mood_emoji(mood)
+                            
+                            # 显示日期和情绪
+                            st.markdown(
+                                f"<div style='background-color: {color}; "
+                                f"padding: 10px; border-radius: 10px; text-align: center; "
+                                f"opacity: {0.5 + intensity*0.1}'>"
+                                f"<div style='font-size: 24px;'>{emoji}</div>"
+                                f"<div style='font-size: 12px;'>{day}</div>"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
+                        else:
+                            # 没有记录的日期
+                            st.markdown(
+                                f"<div style='border: 1px dashed #ccc; "
+                                f"padding: 10px; border-radius: 10px; text-align: center;'>"
+                                f"<div style='font-size: 14px; color: #999;'>{day}</div>"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
+        
+        # 月度情绪统计
+        st.markdown("#### 📊 月度情绪统计")
+        
+        if mood_data:
+            # 统计各情绪天数
+            mood_counts = {}
+            for data in mood_data.values():
+                mood = data["mood"]
+                mood_counts[mood] = mood_counts.get(mood, 0) + 1
+            
+            # 显示统计
+            cols = st.columns(len(mood_counts) if mood_counts else 1)
+            for i, (mood, count) in enumerate(sorted(mood_counts.items(), key=lambda x: x[1], reverse=True)):
+                with cols[i % len(cols)]:
+                    emoji = get_mood_emoji(mood)
+                    color = mood_colors.get(mood, "#808080")
+                    st.markdown(
+                        f"<div style='background-color: {color}20; padding: 15px; "
+                        f"border-radius: 10px; border-left: 4px solid {color};'>"
+                        f"<div style='font-size: 24px;'>{emoji} {mood}</div>"
+                        f"<div style='font-size: 18px;'>记录 {count} 天</div>"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
+            
+            # 平均情绪强度
+            avg_intensity = sum(d["intensity"] for d in mood_data.values()) / len(mood_data)
+            st.markdown(f"📈 平均情绪强度: {avg_intensity:.1f}/5.0")
+        else:
+            st.info("本月还没有记录哦，开始记录你的心情吧！")
     
-    if st.button("保存心情", type="primary"):
-        st.success("心情已记录！")
-    
-    st.divider()
-    
-    st.markdown("#### 情绪统计")
-    st.info("情绪趋势图开发中...")
+    with tab3:
+        st.markdown("#### 🎵 心情愉悦推荐")
+        
+        # 创建子标签页
+        subtab1, subtab2 = st.tabs(["🎶 放松音乐", "🎬 治愈电影"])
+        
+        with subtab1:
+            st.markdown("##### 🌿 放松音乐歌单")
+            
+            # 音乐推荐数据 - 覆盖所有情绪
+            music_recommendations = [
+                # 开心
+                {"name": "River Flows In You", "artist": "Yiruma", 
+                 "genre": "钢琴曲", "mood": "开心", "description": "你的心河，永不停息，温暖治愈"},
+                {"name": "Summer", "artist": "Joe Hisaishi", 
+                 "genre": "动漫配乐", "mood": "开心", "description": "菊次郎的夏天，轻快明亮"},
+                {"name": "Home", "artist": "Michael Bublé", 
+                 "genre": "爵士", "mood": "开心", "description": "回家的感觉真好，温馨动人"},
+                {"name": "Happy", "artist": "Pharrell Williams", 
+                 "genre": "流行", "mood": "开心", "description": "传递快乐能量的热门金曲"},
+                
+                # 平静
+                {"name": "雨的轻喃", "artist": "Various Artists", 
+                 "genre": "自然音乐", "mood": "平静", "description": "雨声与轻柔钢琴的完美融合"},
+                {"name": "星空", "artist": "Bandari", 
+                 "genre": "轻音乐", "mood": "平静", "description": "如星空般宁静美好的旋律"},
+                {"name": "Canon in D", "artist": "Johann Pachelbel", 
+                 "genre": "古典", "mood": "平静", "description": "经典的卡农，永恒的感动"},
+                {"name": "Kiss The Rain", "artist": "Yiruma", 
+                 "genre": "钢琴曲", "mood": "平静", "description": "如雨滴般轻柔的旋律"},
+                
+                # 兴奋
+                {"name": "Eye of the Tiger", "artist": "Survivor", 
+                 "genre": "摇滚", "mood": "兴奋", "description": "充满力量感，点燃激情"},
+                {"name": "We Will Rock You", "artist": "Queen", 
+                 "genre": "摇滚", "mood": "兴奋", "description": "振奋人心的经典摇滚"},
+                {"name": "Can't Stop the Feeling", "artist": "Justin Timberlake", 
+                 "genre": "流行", "mood": "兴奋", "description": "欢快节奏，忍不住想跳舞"},
+                {"name": "Uptown Funk", "artist": "Bruno Mars", 
+                 "genre": "放克", "mood": "兴奋", "description": "复古放克，活力满满"},
+                
+                # 疲惫
+                {"name": "Weightless", "artist": "Marconi Union", 
+                 "genre": "放松音乐", "mood": "疲惫", "description": "科学证明最放松的音乐"},
+                {"name": "Clair de Lune", "artist": "Debussy", 
+                 "genre": "古典", "mood": "疲惫", "description": "月光下的温柔旋律"},
+                {"name": "Moon River", "artist": "Audrey Hepburn", 
+                 "genre": "爵士", "mood": "疲惫", "description": "经典老歌，舒缓身心"},
+                {"name": "Sleep Away", "artist": "Bob Acri", 
+                 "genre": "轻音乐", "mood": "疲惫", "description": "温柔入眠曲"},
+                
+                # 焦虑
+                {"name": "Mindfulness Meditation", "artist": "Meditation Music", 
+                 "genre": "冥想音乐", "mood": "焦虑", "description": "正念冥想，平复焦虑"},
+                {"name": "Om Shanti Om", "artist": "Deva Premal", 
+                 "genre": "颂钵音乐", "mood": "焦虑", "description": "颂钵疗愈，静心安神"},
+                {"name": "Deep Breathing", "artist": "Nature Sounds", 
+                 "genre": "自然音效", "mood": "焦虑", "description": "深呼吸引导，放松身心"},
+                {"name": "Solfeggio 528Hz", "artist": "Healing Frequency", 
+                 "genre": "疗愈音乐", "mood": "焦虑", "description": "528Hz频率，修复DNA"},
+                
+                # 悲伤
+                {"name": "Nothing Compares 2 U", "artist": "Sinéad O'Connor", 
+                 "genre": "抒情", "mood": "悲伤", "description": "释放悲伤情绪的经典"},
+                {"name": "Hurt", "artist": "Johnny Cash", 
+                 "genre": "乡村", "mood": "悲伤", "description": "深沉沧桑，触动心灵"},
+                {"name": "Someone Like You", "artist": "Adele", 
+                 "genre": "抒情", "mood": "悲伤", "description": "失恋必听，释放情绪"},
+                {"name": "The Night We Met", "artist": "Lord Huron", 
+                 "genre": "独立民谣", "mood": "悲伤", "description": "凄美动人，适合独自聆听"},
+                
+                # 愤怒
+                {"name": "Smells Like Teen Spirit", "artist": "Nirvana", 
+                 "genre": "摇滚", "mood": "愤怒", "description": "释放青春怒火的摇滚经典"},
+                {"name": "Enter Sandman", "artist": "Metallica", 
+                 "genre": "重金属", "mood": "愤怒", "description": "激烈节奏，宣泄愤怒"},
+                {"name": "Break Stuff", "artist": "Limp Bizkit", 
+                 "genre": "新金属", "mood": "愤怒", "description": "暴力美学，释放压力"},
+                {"name": "I Hate Myself for Loving You", "artist": "Joan Jett", 
+                 "genre": "摇滚", "mood": "愤怒", "description": "爱恨交织的力量"},
+                
+                # 迷茫
+                {"name": "Lost in the World", "artist": "Kanye West", 
+                 "genre": "嘻哈", "mood": "迷茫", "description": "迷失中的寻找"},
+                {"name": "The Sound of Silence", "artist": "Simon & Garfunkel", 
+                 "genre": "民谣", "mood": "迷茫", "description": "寂静之声，思考人生"},
+                {"name": "Hallelujah", "artist": "Leonard Cohen", 
+                 "genre": "民谣", "mood": "迷茫", "description": "深刻哲思，寻找意义"},
+                {"name": "Knockin' on Heaven's Door", "artist": "Bob Dylan", 
+                 "genre": "民谣", "mood": "迷茫", "description": "叩问天堂之门"},
+            ]
+            
+            # 按心情筛选
+            filter_mood = st.selectbox("按心情筛选", ["全部"] + list(MOOD_TYPES.keys()))
+            
+            # 显示音乐列表
+            if filter_mood == "全部":
+                filtered_music = music_recommendations
+            else:
+                filtered_music = [m for m in music_recommendations if m["mood"] == filter_mood]
+            
+            for music in filtered_music:
+                with st.expander(f"🎵 {music['name']} - {music['artist']}"):
+                    st.markdown(f"**类型**: {music['genre']}")
+                    st.markdown(f"**适合心情**: {get_mood_emoji(music['mood'])} {music['mood']}")
+                    st.markdown(f"**描述**: {music['description']}")
+                    if st.button(f"▶ 播放", key=f"play_{music['name']}"):
+                        st.info(f"正在播放: {music['name']}")
+        
+        with subtab2:
+            st.markdown("##### 🎥 治愈电影片单")
+            
+            # 电影推荐数据 - 覆盖所有情绪
+            movie_recommendations = [
+                # 开心
+                {"name": "海蒂和爷爷", "year": 2019, 
+                 "theme_color": "#4A90D9", "mood": "开心", 
+                 "description": "阿尔卑斯山的清新与温暖，治愈人心"},
+                {"name": "千与千寻", "year": 2001, 
+                 "theme_color": "#FF69B4", "mood": "开心", 
+                 "description": "宫崎骏的经典，勇气与成长的奇幻之旅"},
+                {"name": "龙猫", "year": 1988, 
+                 "theme_color": "#228B22", "mood": "开心", 
+                 "description": "童心与想象力，森林里的温情治愈"},
+                {"name": "帕丁顿熊2", "year": 2017, 
+                 "theme_color": "#D41159", "mood": "开心", 
+                 "description": "萌熊进城，伦敦冒险，笑中带泪"},
+                
+                # 平静
+                {"name": "小森林 夏秋篇", "year": 2014, 
+                 "theme_color": "#2E8B57", "mood": "平静", 
+                 "description": "远离都市喧嚣，回归自然生活的美好"},
+                {"name": "小森林 冬春篇", "year": 2014, 
+                 "theme_color": "#4682B4", "mood": "平静", 
+                 "description": "四季流转，用美食治愈心灵的孤独"},
+                {"name": "深夜食堂", "year": 2009, 
+                 "theme_color": "#3D3D3D", "mood": "平静", 
+                 "description": "深夜的温暖，每个故事都触动人心"},
+                {"name": "岁月神偷", "year": 2010, 
+                 "theme_color": "#8B4513", "mood": "平静", 
+                 "description": "香港岁月，平淡中的深情与成长"},
+                
+                # 兴奋
+                {"name": "疯狂动物城", "year": 2016, 
+                 "theme_color": "#006994", "mood": "兴奋", 
+                 "description": "动物乌托邦的冒险，热血追梦"},
+                {"name": "速度与激情7", "year": 2015, 
+                 "theme_color": "#FF4444", "mood": "兴奋", 
+                 "description": "极速狂飙，兄弟情谊，热血沸腾"},
+                {"name": "复仇者联盟4", "year": 2019, 
+                 "theme_color": "#0077B6", "mood": "兴奋", 
+                 "description": "终局之战，英雄集结，史诗对决"},
+                {"name": "头号玩家", "year": 2018, 
+                 "theme_color": "#9D4EDD", "mood": "兴奋", 
+                 "description": "虚拟现实冒险，彩蛋盛宴"},
+                
+                # 疲惫
+                {"name": "海边的曼彻斯特", "year": 2016, 
+                 "theme_color": "#5A6A7A", "mood": "疲惫", 
+                 "description": "生活的沉重，学会与痛苦共处"},
+                {"name": "暖暖内含光", "year": 2004, 
+                 "theme_color": "#E63946", "mood": "疲惫", 
+                 "description": "删除记忆后的重生与领悟"},
+                {"name": "时时刻刻", "year": 2002, 
+                 "theme_color": "#6B7280", "mood": "疲惫", 
+                 "description": "三个时代女性的生命沉思"},
+                {"name": "出租车司机", "year": 1976, 
+                 "theme_color": "#2D3436", "mood": "疲惫", 
+                 "description": "城市孤独者的灵魂救赎"},
+                
+                # 焦虑
+                {"name": "心灵捕手", "year": 1997, 
+                 "theme_color": "#1E90FF", "mood": "焦虑", 
+                 "description": "天才少年的自我发现与疗愈"},
+                {"name": "美丽心灵", "year": 2001, 
+                 "theme_color": "#3CB371", "mood": "焦虑", 
+                 "description": "数学家与精神疾病的抗争"},
+                {"name": "海边卡夫卡", "year": 2004, 
+                 "theme_color": "#7B68EE", "mood": "焦虑", 
+                 "description": "村上春树式的青春迷失与寻找"},
+                {"name": "黑天鹅", "year": 2010, 
+                 "theme_color": "#1A1A2E", "mood": "焦虑", 
+                 "description": "艺术追求与自我毁灭的边缘"},
+                
+                # 悲伤
+                {"name": "泰坦尼克号", "year": 1997, 
+                 "theme_color": "#1E3A5F", "mood": "悲伤", 
+                 "description": "史诗爱情悲剧，永恒的承诺"},
+                {"name": "霸王别姬", "year": 1993, 
+                 "theme_color": "#8B0000", "mood": "悲伤", 
+                 "description": "人生如戏，戏如人生的悲歌"},
+                {"name": "活着", "year": 1994, 
+                 "theme_color": "#654321", "mood": "悲伤", 
+                 "description": "福贵的一生，苦难中的坚韧"},
+                {"name": "熔炉", "year": 2011, 
+                 "theme_color": "#2F4F4F", "mood": "悲伤", 
+                 "description": "真实事件改编，黑暗中的微光"},
+                
+                # 愤怒
+                {"name": "搏击俱乐部", "year": 1999, 
+                 "theme_color": "#1A1A1A", "mood": "愤怒", 
+                 "description": "消费主义时代的反叛与觉醒"},
+                {"name": "七宗罪", "year": 1995, 
+                 "theme_color": "#2D2D2D", "mood": "愤怒", 
+                 "description": "人性阴暗面的深刻剖析"},
+                {"name": "华尔街之狼", "year": 2013, 
+                 "theme_color": "#DAA520", "mood": "愤怒", 
+                 "description": "金钱与权力的疯狂追逐"},
+                {"name": "发条橙", "year": 1971, 
+                 "theme_color": "#FFD700", "mood": "愤怒", 
+                 "description": "极端暴力与社会控制的反思"},
+                
+                # 迷茫
+                {"name": "楚门的世界", "year": 1998, 
+                 "theme_color": "#4682B4", "mood": "迷茫", 
+                 "description": "真实与虚假的边界探索"},
+                {"name": "黑客帝国", "year": 1999, 
+                 "theme_color": "#00FF00", "mood": "迷茫", 
+                 "description": "虚拟与现实的哲学思考"},
+                {"name": "星际穿越", "year": 2014, 
+                 "theme_color": "#001A33", "mood": "迷茫", 
+                 "description": "爱与时间的终极命题"},
+                {"name": "无问西东", "year": 2018, 
+                 "theme_color": "#CD853F", "mood": "迷茫", 
+                 "description": "四个时代的青春与选择"},
+            ]
+            
+            # 按心情筛选
+            filter_mood_movie = st.selectbox("按心情选择电影", ["全部"] + list(MOOD_TYPES.keys()), key="movie_filter")
+            
+            # 显示电影列表
+            if filter_mood_movie == "全部":
+                filtered_movies = movie_recommendations
+            else:
+                filtered_movies = [m for m in movie_recommendations if m["mood"] == filter_mood_movie]
+            
+            # 显示电影卡片
+            cols = st.columns(2)
+            for i, movie in enumerate(filtered_movies):
+                with cols[i % 2]:
+                    # 电影卡片 - 提高对比度
+                    st.markdown(
+                        f"<div style='background: linear-gradient(135deg, #FAFAFA, #F5F5F5); "
+                        f"border-left: 6px solid {movie['theme_color']}; "
+                        f"padding: 22px; border-radius: 12px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08);'>"
+                        f"<h4 style='color: #1a1a1a; margin-bottom: 8px; font-weight: 600;'>"
+                        f"🎬 {movie['name']} <span style='font-size: 14px; color: #888; font-weight: normal;'>({movie['year']})</span></h4>"
+                        f"<p style='color: #2d2d2d; margin: 10px 0; font-size: 14px; line-height: 1.5;'>{movie['description']}</p>"
+                        f"<div style='display: flex; align-items: center; gap: 10px; margin-top: 12px;'>"
+                        f"<span style='background-color: {movie['theme_color']}; padding: 5px 14px; "
+                        f"border-radius: 20px; font-size: 13px; color: white; font-weight: 500;'>"
+                        f"{get_mood_emoji(movie['mood'])} {movie['mood']}</span>"
+                        f"</div>"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
+                    
+                    # 主题色显示
+                    st.color_picker(f"主题色", movie['theme_color'], disabled=True, 
+                                  label_visibility="collapsed",
+                                  key=f"color_{movie['name']}")
+                    st.markdown("---")
 
 
 def render_ai_page():

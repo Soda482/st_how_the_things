@@ -319,73 +319,139 @@ def render_diet_page():
     with tab1:
         st.markdown("#### 快速记录")
         
-        # 食物搜索
-        search_keyword = st.text_input("🔍 搜索食物", placeholder="输入食物名称，如：米饭、鸡胸肉")
+        # 初始化会话状态
+        if "selected_category" not in st.session_state:
+            st.session_state.selected_category = "全部"
         
-        if search_keyword:
-            st.session_state.food_search_results = search_food(search_keyword)
-            if st.session_state.food_search_results:
-                st.markdown("##### 匹配结果")
-                for food in st.session_state.food_search_results:
-                    if st.button(f"{food['food_name']} ({food['category']})"):
-                        st.session_state.selected_food = food
-                        st.session_state.food_quantity = food.get("serving_size", 100)
-                        st.rerun()
+        # 搜索区域布局
+        col_search, col_category = st.columns([2, 1])
+        
+        with col_search:
+            search_keyword = st.text_input(
+                "🔍 搜索食物", 
+                placeholder="输入食物名称，如：米饭、鸡胸肉",
+                key="food_search_input"
+            )
+        
+        with col_category:
+            # 获取所有分类
+            categories = ["全部"] + get_food_categories()
+            st.session_state.selected_category = st.selectbox(
+                "📁 分类",
+                categories,
+                index=categories.index(st.session_state.selected_category) if st.session_state.selected_category in categories else 0
+            )
+        
+        # 搜索结果展示区域
+        search_results = []
+        if search_keyword or st.session_state.selected_category != "全部":
+            if st.session_state.selected_category != "全部":
+                # 按分类筛选
+                category_foods = get_foods_by_category(st.session_state.selected_category)
+                if search_keyword:
+                    # 同时按关键词筛选
+                    search_results = [f for f in category_foods if search_keyword.lower() in f["food_name"].lower()]
+                else:
+                    search_results = category_foods
+            else:
+                # 仅按关键词搜索
+                search_results = search_food(search_keyword)
+        
+        # 显示搜索结果
+        if search_results:
+            st.markdown("##### 🥗 匹配结果")
+            
+            # 使用两列展示食物卡片
+            cols = st.columns(2)
+            for i, food in enumerate(search_results):
+                with cols[i % 2]:
+                    # 创建食物卡片容器
+                    with st.container():
+                        st.markdown(f"**{food['food_name']}**")
+                        st.markdown(f"<span style='color: var(--text-muted); font-size: 0.8rem;'>{food['category']}</span>", unsafe_allow_html=True)
+                        st.markdown(f"<span style='font-size: 0.9rem;'>🔥 {food['calories']} kcal/{food['serving_size']}{food['serving_unit']}</span>", unsafe_allow_html=True)
+                        st.markdown(f"<span style='font-size: 0.8rem; color: var(--text-muted);'>🥚 {food['protein']}g | 🥑 {food['fat']}g | 🍞 {food['carbs']}g</span>", unsafe_allow_html=True)
+                        if st.button(f"选择", key=f"btn_{food['id']}", use_container_width=True):
+                            st.session_state.selected_food = food
+                            st.session_state.food_quantity = food.get("serving_size", 100)
+                            st.rerun()
+                    st.divider()
+        else:
+            if search_keyword or st.session_state.selected_category != "全部":
+                st.info("暂无匹配的食物")
+            else:
+                st.info("开始记录今天的饮食吧！")
         
         # 显示选中的食物信息
         if st.session_state.selected_food:
             food = st.session_state.selected_food
             st.markdown(f"##### ✅ 已选择: {food['food_name']}")
             
-            col1, col2 = st.columns(2)
-            with col1:
-                meal_type_map = {"早餐": "breakfast", "午餐": "lunch", "晚餐": "dinner", "加餐": "snack"}
-                meal_type = st.selectbox("餐次", ["早餐", "午餐", "晚餐", "加餐"])
+            # 选中食物的详细信息卡片
+            with st.container():
+                # 食物信息和操作区域
+                col_left, col_right = st.columns([2, 1])
                 
-                # 默认使用食物的标准分量单位
-                default_unit = food.get("serving_unit", "g")
-                st.session_state.food_quantity = st.number_input(
-                    f"分量 ({default_unit})", 
-                    min_value=0.1, 
-                    value=float(st.session_state.food_quantity),
-                    step=0.1
-                )
+                with col_left:
+                    # 餐次选择和分量输入
+                    meal_type_map = {"早餐": "breakfast", "午餐": "lunch", "晚餐": "dinner", "加餐": "snack"}
+                    meal_type = st.selectbox("餐次", ["早餐", "午餐", "晚餐", "加餐"], key="meal_type_select")
+                    
+                    # 默认使用食物的标准分量单位
+                    default_unit = food.get("serving_unit", "g")
+                    st.session_state.food_quantity = st.number_input(
+                        f"分量 ({default_unit})", 
+                        min_value=0.1, 
+                        value=float(st.session_state.food_quantity),
+                        step=0.1,
+                        key="food_quantity_input"
+                    )
+                
+                with col_right:
+                    # 计算营养成分
+                    nutrition = calculate_nutrition(food, st.session_state.food_quantity, default_unit)
+                    
+                    st.markdown("**营养成分（自动计算）**")
+                    nutri_cols = st.columns(2)
+                    with nutri_cols[0]:
+                        st.write(f"🔥 热量: {nutrition['calories']} kcal")
+                        st.write(f"🥚 蛋白质: {nutrition['protein']} g")
+                    with nutri_cols[1]:
+                        st.write(f"🥑 脂肪: {nutrition['fat']} g")
+                        st.write(f"🍞 碳水: {nutrition['carbs']} g")
             
-            # 计算营养成分
-            nutrition = calculate_nutrition(food, st.session_state.food_quantity, default_unit)
+            notes = st.text_input("备注（可选）", placeholder="添加备注信息...", key="food_notes")
             
-            with col2:
-                st.markdown("**营养成分（自动计算）**")
-                st.write(f"热量: {nutrition['calories']} kcal")
-                st.write(f"蛋白质: {nutrition['protein']} g")
-                st.write(f"脂肪: {nutrition['fat']} g")
-                st.write(f"碳水: {nutrition['carbs']} g")
-            
-            notes = st.text_input("备注（可选）")
-            
-            if st.button("添加记录", type="primary"):
-                record = DietRecord(
-                    date=date.today().isoformat(),
-                    meal_type=meal_type_map[meal_type],
-                    food_name=food["food_name"],
-                    food_id=food["id"],
-                    calories=nutrition["calories"],
-                    protein=nutrition["protein"],
-                    fat=nutrition["fat"],
-                    carbs=nutrition["carbs"],
-                    fiber=nutrition["fiber"],
-                    sugar=nutrition["sugar"],
-                    sodium=nutrition["sodium"],
-                    quantity=st.session_state.food_quantity,
-                    unit=default_unit,
-                    notes=notes
-                )
-                if add_diet_record(record):
-                    st.success("记录已添加！")
+            # 操作按钮
+            col_btn1, col_btn2 = st.columns([3, 1])
+            with col_btn1:
+                if st.button("➕ 添加记录", type="primary", use_container_width=True):
+                    record = DietRecord(
+                        date=date.today().isoformat(),
+                        meal_type=meal_type_map[meal_type],
+                        food_name=food["food_name"],
+                        food_id=food["id"],
+                        calories=nutrition["calories"],
+                        protein=nutrition["protein"],
+                        fat=nutrition["fat"],
+                        carbs=nutrition["carbs"],
+                        fiber=nutrition["fiber"],
+                        sugar=nutrition["sugar"],
+                        sodium=nutrition["sodium"],
+                        quantity=st.session_state.food_quantity,
+                        unit=default_unit,
+                        notes=notes
+                    )
+                    if add_diet_record(record):
+                        st.success("✅ 记录已添加！")
+                        st.session_state.selected_food = None
+                        st.rerun()
+                    else:
+                        st.error("❌ 添加失败，请重试")
+            with col_btn2:
+                if st.button("🗑️ 取消", use_container_width=True):
                     st.session_state.selected_food = None
                     st.rerun()
-                else:
-                    st.error("添加失败，请重试")
         
         else:
             # 手动输入模式
@@ -505,6 +571,55 @@ def render_diet_page():
                 </div>
             </div>
             """, unsafe_allow_html=True)
+        
+        st.divider()
+        
+        # 营养成分占比饼图
+        st.markdown("##### 🥧 营养成分占比")
+        
+        # 计算三大营养素的热量
+        protein_cal = daily_summary.get("total_protein", 0) * 4  # 蛋白质 4kcal/g
+        fat_cal = daily_summary.get("total_fat", 0) * 9           # 脂肪 9kcal/g
+        carbs_cal = daily_summary.get("total_carbs", 0) * 4     # 碳水 4kcal/g
+        total_cal = protein_cal + fat_cal + carbs_cal
+        
+        if total_cal > 0:
+            import plotly.express as px
+            import pandas as pd
+            
+            nutrients_data = {
+                '营养素': ['蛋白质', '脂肪', '碳水'],
+                '热量': [protein_cal, fat_cal, carbs_cal],
+                '重量': [daily_summary.get("total_protein", 0), daily_summary.get("total_fat", 0), daily_summary.get("total_carbs", 0)]
+            }
+            df = pd.DataFrame(nutrients_data)
+            
+            # 饼图
+            fig = px.pie(df, values='热量', names='营养素', hole=0.4, 
+                        color='营养素',
+                        color_discrete_map={'蛋白质': '#3B82F6', '脂肪': '#F59E0B', '碳水': '#10B981'})
+            fig.update_layout(
+                margin=dict(l=20, r=20, t=20, b=20),
+                height=280,
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=-0.2)
+            )
+            fig.update_traces(textposition='inside', textinfo='percent+label')
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # 显示详细数据
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                protein_pct = protein_cal / total_cal * 100
+                st.metric("蛋白质", f"{daily_summary.get('total_protein', 0):.1f}g", f"{protein_pct:.1f}%")
+            with col2:
+                fat_pct = fat_cal / total_cal * 100
+                st.metric("脂肪", f"{daily_summary.get('total_fat', 0):.1f}g", f"{fat_pct:.1f}%")
+            with col3:
+                carbs_pct = carbs_cal / total_cal * 100
+                st.metric("碳水", f"{daily_summary.get('total_carbs', 0):.1f}g", f"{carbs_pct:.1f}%")
+        else:
+            st.info("暂无营养数据，请先记录饮食")
         
         st.divider()
         
@@ -652,31 +767,277 @@ def render_expense_page():
     """渲染消费记账页面"""
     st.title("💰 消费记账")
     
-    tab1, tab2, tab3 = st.tabs(["记录", "统计", "导入"])
+    # 导入新的统计函数
+    from modules.expense.expense_tracker import (
+        get_weekly_summary, get_yearly_summary, get_daily_details,
+        get_monthly_summary, add_expense_record, ExpenseRecord
+    )
+    
+    tab1, tab2, tab3 = st.tabs(["📝 记录", "📊 统计", "📥 导入"])
     
     with tab1:
         st.markdown("#### 快速记账")
         
         col1, col2 = st.columns(2)
         with col1:
-            amount = st.number_input("金额 (¥)", min_value=0.0, value=0.0)
-            category = st.selectbox("分类", ["餐饮", "交通", "购物", "娱乐", "医疗", "居住", "通讯", "服饰", "投资", "其他"])
+            amount = st.number_input("金额 (¥)", min_value=0.0, value=0.0, step=0.1)
+            category = st.selectbox("分类", ["餐饮", "交通", "购物", "娱乐", "医疗", "居住", "通讯", "服饰", "教育", "其他"])
         
         with col2:
-            description = st.text_input("描述")
+            description = st.text_input("描述", placeholder="消费内容...")
             payment_method = st.selectbox("支付方式", ["微信", "支付宝", "现金", "银行卡"])
         
         if st.button("记一笔", type="primary"):
-            st.success("记账成功！")
+            if amount > 0:
+                record = ExpenseRecord(
+                    date=date.today().isoformat(),
+                    amount=amount,
+                    category=category,
+                    description=description,
+                    payment_method=payment_method
+                )
+                if add_expense_record(record):
+                    st.success("记账成功！")
+                    st.rerun()
+                else:
+                    st.error("记账失败，请重试")
+            else:
+                st.warning("请输入金额")
     
     with tab2:
         st.markdown("#### 消费统计")
-        st.info("统计图表开发中...")
+        
+        # 选择统计时间范围
+        stat_type = st.radio("统计维度", ["周", "月", "年"], horizontal=True)
+        
+        today = date.today()
+        
+        if stat_type == "周":
+            weekly_data = get_weekly_summary(today.isoformat())
+            
+            # 周总支出
+            st.markdown(f"**{weekly_data.get('week_start', '')} 至 {weekly_data.get('week_end', '')}**")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("本周支出", f"¥{weekly_data.get('total', 0):.2f}")
+            with col2:
+                category_count = len(weekly_data.get('by_category', []))
+                st.metric("消费类别", f"{category_count} 类")
+            
+            st.divider()
+            
+            # 分类饼图
+            st.markdown("##### 📊 分类占比")
+            by_category = weekly_data.get('by_category', [])
+            if by_category:
+                # 准备饼图数据
+                categories = [item['category'] for item in by_category]
+                amounts = [item['total'] for item in by_category]
+                
+                # 使用 Plotly 饼图
+                import plotly.express as px
+                import pandas as pd
+                
+                df = pd.DataFrame({
+                    '分类': categories,
+                    '金额': amounts
+                })
+                fig = px.pie(df, values='金额', names='分类', hole=0.4)
+                fig.update_layout(
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    height=300
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("本周暂无消费记录")
+            
+            st.divider()
+            
+            # 每日柱状图
+            st.markdown("##### 📈 每日支出")
+            by_day = weekly_data.get('by_day', [])
+            if by_day:
+                import plotly.express as px
+                import pandas as pd
+                
+                df = pd.DataFrame(by_day)
+                fig = px.bar(df, x='date', y='total', title='每日支出')
+                fig.update_layout(
+                    xaxis_title="日期",
+                    yaxis_title="金额 (¥)",
+                    height=250,
+                    margin=dict(l=20, r=20, t=40, b=20)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("本周暂无消费记录")
+        
+        elif stat_type == "月":
+            monthly_data = get_monthly_summary(today.year, today.month)
+            
+            # 月总支出
+            col1, col2 = st.columns(2)
+            total = sum(item['total'] for item in monthly_data)
+            with col1:
+                st.metric(f"{today.year}年{today.month}月支出", f"¥{total:.2f}")
+            with col2:
+                st.metric("消费类别", f"{len(monthly_data)} 类")
+            
+            st.divider()
+            
+            # 分类饼图
+            st.markdown("##### 📊 分类占比")
+            if monthly_data:
+                import plotly.express as px
+                import pandas as pd
+                
+                categories = [item['category'] for item in monthly_data]
+                amounts = [item['total'] for item in monthly_data]
+                
+                df = pd.DataFrame({
+                    '分类': categories,
+                    '金额': amounts
+                })
+                fig = px.pie(df, values='金额', names='分类', hole=0.4)
+                fig.update_layout(
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    height=300
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("本月暂无消费记录")
+            
+            st.divider()
+            
+            # 日支出柱状图
+            st.markdown("##### 📈 日支出趋势")
+            daily_data = get_daily_details(today.year, today.month)
+            if daily_data:
+                import plotly.express as px
+                import pandas as pd
+                from collections import defaultdict
+                
+                # 按日期汇总
+                daily_totals = defaultdict(float)
+                for item in daily_data:
+                    daily_totals[item['date']] += item['amount']
+                
+                df = pd.DataFrame([
+                    {'date': k, 'total': v} for k, v in daily_totals.items()
+                ])
+                df = df.sort_values('date')
+                
+                fig = px.bar(df, x='date', y='total', title='每日支出')
+                fig.update_layout(
+                    xaxis_title="日期",
+                    yaxis_title="金额 (¥)",
+                    height=250,
+                    margin=dict(l=20, r=20, t=40, b=20)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("本月暂无消费记录")
+            
+            st.divider()
+            
+            # 日支出明细表
+            st.markdown("##### 📋 日支出明细")
+            if daily_data:
+                # 按日期分组显示
+                from collections import defaultdict
+                daily_groups = defaultdict(list)
+                for item in daily_data:
+                    daily_groups[item['date']].append(item)
+                
+                for day_date in sorted(daily_groups.keys(), reverse=True):
+                    with st.expander(f"📅 {day_date} (¥{sum(item['amount'] for item in daily_groups[day_date]):.2f})"):
+                        for item in daily_groups[day_date]:
+                            col1, col2, col3 = st.columns([2, 3, 1])
+                            with col1:
+                                st.write(f"**{item['category']}**")
+                            with col2:
+                                st.write(item.get('description', '-'))
+                            with col3:
+                                st.write(f"¥{item['amount']:.2f}")
+                            st.divider()
+            else:
+                st.info("本月暂无消费记录")
+        
+        else:  # 年
+            yearly_data = get_yearly_summary(today.year)
+            
+            # 年总支出
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric(f"{today.year}年支出", f"¥{yearly_data.get('total', 0):.2f}")
+            with col2:
+                category_count = len(yearly_data.get('by_category', []))
+                st.metric("消费类别", f"{category_count} 类")
+            
+            st.divider()
+            
+            # 分类饼图
+            st.markdown("##### 📊 分类占比")
+            by_category = yearly_data.get('by_category', [])
+            if by_category:
+                import plotly.express as px
+                import pandas as pd
+                
+                categories = [item['category'] for item in by_category]
+                amounts = [item['total'] for item in by_category]
+                
+                df = pd.DataFrame({
+                    '分类': categories,
+                    '金额': amounts
+                })
+                fig = px.pie(df, values='金额', names='分类', hole=0.4)
+                fig.update_layout(
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    height=300
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("今年暂无消费记录")
+            
+            st.divider()
+            
+            # 月支出柱状图
+            st.markdown("##### 📈 月支出趋势")
+            by_month = yearly_data.get('by_month', [])
+            if by_month:
+                import plotly.express as px
+                import pandas as pd
+                
+                # 补全所有月份
+                month_totals = {f"{today.year}-{m:02d}": 0 for m in range(1, 13)}
+                for item in by_month:
+                    month_key = f"{today.year}-{item['month']}"
+                    month_totals[month_key] = item['total']
+                
+                df = pd.DataFrame([
+                    {'month': k, 'total': v} for k, v in month_totals.items()
+                ])
+                df['month'] = pd.to_datetime(df['month'])
+                
+                fig = px.bar(df, x='month.dt.strftime("%m月")', y='total', title='每月支出')
+                fig.update_layout(
+                    xaxis_title="月份",
+                    yaxis_title="金额 (¥)",
+                    height=250,
+                    margin=dict(l=20, r=20, t=40, b=20)
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("今年暂无消费记录")
     
     with tab3:
         st.markdown("#### 导入账单")
-        st.file_uploader("上传 CSV 文件", type=["csv"])
-        st.caption("支持微信/支付宝标准格式导出账单")
+        st.info("支持微信/支付宝标准格式导出账单")
+        
+        uploaded_file = st.file_uploader("上传 CSV 文件", type=["csv"])
+        if uploaded_file:
+            st.success("文件已上传")
+            st.caption("正在解析账单数据...")
 
 
 def render_exercise_page():

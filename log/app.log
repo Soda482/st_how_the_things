@@ -9,3 +9,10 @@
 2026-06-15 17:04:08 - life_tracker - ERROR - 应用错误: no such table: food_database
 2026-06-15 17:06:58 - life_tracker - ERROR - 应用错误: no such table: diet_records
 2026-06-15 17:07:08 - life_tracker - ERROR - 应用错误: no such table: food_database
+2026-06-15 19:15:05 - life_tracker - ERROR - 应用错误: cannot import name 'ExpenseTracker' from 'modules.expense.expense_tracker' (C:\Users\27953\Desktop\程序设计与应用\期末作品\st_how_the_things\modules\expense\expense_tracker.py)
+2026-06-15 19:18:48 - life_tracker - ERROR - 应用错误: No module named 'plotly'
+2026-06-15 19:18:58 - life_tracker - ERROR - 应用错误: No module named 'plotly'
+2026-06-15 19:28:04 - life_tracker - ERROR - 应用错误: ButtonMixin.button() got an unexpected keyword argument 'hidden'
+2026-06-15 19:28:10 - life_tracker - ERROR - 应用错误: ButtonMixin.button() got an unexpected keyword argument 'hidden'
+2026-06-15 19:28:14 - life_tracker - ERROR - 应用错误: ButtonMixin.button() got an unexpected keyword argument 'hidden'
+2026-06-15 19:28:16 - life_tracker - ERROR - 应用错误: ButtonMixin.button() got an unexpected keyword argument 'hidden'

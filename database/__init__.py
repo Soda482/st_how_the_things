@@ -142,6 +142,7 @@ def init_db() -> None:
                     steps INTEGER DEFAULT 0,
                     distance REAL,
                     met REAL DEFAULT 3.5,
+                    pace REAL,
                     notes TEXT,
                     tags TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

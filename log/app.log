@@ -16,3 +16,14 @@
 2026-06-15 19:28:10 - life_tracker - ERROR - 应用错误: ButtonMixin.button() got an unexpected keyword argument 'hidden'
 2026-06-15 19:28:14 - life_tracker - ERROR - 应用错误: ButtonMixin.button() got an unexpected keyword argument 'hidden'
 2026-06-15 19:28:16 - life_tracker - ERROR - 应用错误: ButtonMixin.button() got an unexpected keyword argument 'hidden'
+2026-06-15 19:48:27 - life_tracker - ERROR - 应用错误: no such table: sleep_records
+2026-06-15 19:49:25 - life_tracker - ERROR - 应用错误: no such table: exercise_records
+2026-06-15 19:51:50 - life_tracker - ERROR - 应用错误: no such table: exercise_records
+2026-06-15 19:51:53 - life_tracker - ERROR - 应用错误: no such table: sleep_records
+2026-06-15 19:51:56 - life_tracker - ERROR - 应用错误: no such table: exercise_records
+2026-06-15 19:54:43 - life_tracker - ERROR - 应用错误: ExerciseRecord.__init__() got an unexpected keyword argument 'created_at'
+2026-06-15 19:58:38 - life_tracker - ERROR - 应用错误: SleepRecord.__init__() got an unexpected keyword argument 'created_at'
+2026-06-15 19:59:20 - life_tracker - ERROR - 应用错误: SleepRecord.__init__() got an unexpected keyword argument 'created_at'
+2026-06-15 20:12:01 - life_tracker - ERROR - 应用错误: cannot import name 'EXERCISE_INFO' from 'modules.exercise.exercise_tracker' (C:\Users\27953\Desktop\程序设计与应用\期末作品\st_how_the_things\modules\exercise\exercise_tracker.py)
+2026-06-15 20:32:13 - life_tracker - ERROR - 应用错误: No module named 'utils.quotes'
+2026-06-15 20:32:18 - life_tracker - ERROR - 应用错误: No module named 'utils.quotes'

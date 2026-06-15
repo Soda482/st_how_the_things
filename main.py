@@ -122,9 +122,13 @@ def main():
         # 加载主题样式
         load_custom_css()
         
+        # 初始化数据库（确保所有表都存在）
+        init_db()
+        
         # 检查数据库连接
         if not check_connection():
-            init_db()
+            st.error("数据库连接失败！")
+            return
         
         # 侧边栏导航
         with st.sidebar:
@@ -1042,62 +1046,599 @@ def render_expense_page():
 
 def render_exercise_page():
     """渲染运动健康页面"""
+    from modules.exercise.exercise_tracker import (
+        ExerciseRecord, add_exercise_record, get_exercise_by_date, get_exercise_summary,
+        get_weekly_summary, get_monthly_summary, get_yearly_summary,
+        get_average_calories, get_average_steps, get_exercise_type_stats,
+        EXERCISE_TYPES, EXERCISE_INFO, calculate_calories, calculate_pace
+    )
+    import plotly.express as px
+    import plotly.graph_objects as go
+    import pandas as pd
+    import random
+    
     st.title("🏃 运动健康")
     
-    tab1, tab2, tab3 = st.tabs(["记录", "统计", "挑战"])
+    # 获取用户体重（用于计算热量）
+    user_weight = st.session_state.get("user_weight", 70)
+    
+    # 今日运动汇总
+    today_summary = get_exercise_summary(date.today().isoformat())
+    
+    # 顶部指标卡片
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("今日步数", f"{today_summary['total_steps']:,}", "步")
+    with col2:
+        st.metric("今日消耗", f"{today_summary['total_calories']:.0f}", "kcal")
+    with col3:
+        st.metric("今日时长", f"{today_summary['total_duration']}", "分钟")
+    with col4:
+        st.metric("今日距离", f"{today_summary['total_distance']:.2f}", "公里")
+    
+    st.divider()
+    
+    tab1, tab2, tab3 = st.tabs(["📝 记录", "📊 统计", "🏅 运动"])
     
     with tab1:
         st.markdown("#### 运动记录")
         
         col1, col2 = st.columns(2)
         with col1:
-            exercise_type = st.selectbox("运动类型", ["散步", "跑步", "骑行", "游泳", "瑜伽", "力量训练", "其他"])
-            duration = st.number_input("时长 (分钟)", min_value=0, value=30)
+            # 创建带 emoji 的运动类型选项
+            exercise_type_options = [f"{EXERCISE_INFO.get(k, {}).get('emoji', '🏃')} {k}" for k in EXERCISE_TYPES.keys()]
+            selected_with_emoji = st.selectbox("运动类型", exercise_type_options)
+            # 提取纯运动类型名称
+            exercise_type = selected_with_emoji.split(' ', 1)[-1]
+            
+            duration = st.number_input("时长 (分钟)", min_value=1, value=30)
+            distance = st.number_input("距离 (公里)", min_value=0.0, value=0.0, step=0.1)
         
         with col2:
-            calories = st.number_input("消耗热量 (kcal)", min_value=0, value=0)
+            # 自动计算热量
+            met = EXERCISE_TYPES.get(exercise_type, 5.0)
+            auto_calories = calculate_calories(user_weight, met, duration)
+            calories = st.number_input("消耗热量 (kcal)", min_value=0, value=int(auto_calories))
             steps = st.number_input("步数", min_value=0, value=0)
         
-        if st.button("记录运动", type="primary"):
-            st.success("运动记录已添加！")
+        # 自动计算配速并显示
+        if distance > 0 and duration > 0:
+            pace = calculate_pace(duration, distance)
+            st.success(f"⚡ 配速: {pace:.1f} 分钟/公里")
+        elif distance > 0:
+            st.info("💡 请输入时长以计算配速")
+        elif duration > 0:
+            st.info("💡 请输入距离以计算配速")
+        
+        # 显示运动类型描述
+        exercise_info = EXERCISE_INFO.get(exercise_type, {})
+        if exercise_info.get('description'):
+            st.info(f"💡 {exercise_info['description']}")
+        
+        notes = st.text_input("备注（可选）", placeholder="记录运动感受...")
+        
+        if st.button("➕ 记录运动", type="primary", use_container_width=True):
+            record = ExerciseRecord(
+                date=date.today().isoformat(),
+                exercise_type=exercise_type,
+                duration=duration,
+                calories=calories,
+                steps=steps,
+                distance=distance if distance > 0 else None,
+                notes=notes
+            )
+            if add_exercise_record(record):
+                st.success("✅ 运动记录已添加！")
+                st.rerun()
+            else:
+                st.error("❌ 添加失败，请重试")
+        
+        st.divider()
+        
+        # 今日运动记录列表
+        st.markdown("#### 今日运动记录")
+        today_records = get_exercise_by_date(date.today().isoformat())
+        if today_records:
+            for record in today_records:
+                with st.container():
+                    col1, col2, col3 = st.columns([2, 2, 1])
+                    with col1:
+                        st.markdown(f"**{record.exercise_type}**")
+                        st.caption(f"{record.duration} 分钟")
+                    with col2:
+                        st.markdown(f"🔥 {record.calories:.0f} kcal")
+                        if record.distance:
+                            pace = record.pace if record.pace else (record.duration / record.distance if record.distance > 0 else 0)
+                            st.caption(f"{record.distance:.2f} km | 配速 {pace:.1f} min/km")
+                    with col3:
+                        if record.steps:
+                            st.markdown(f"👣 {record.steps:,}")
+        else:
+            st.info("今日暂无运动记录，开始运动吧！")
     
     with tab2:
         st.markdown("#### 运动统计")
-        st.info("热力图和柱状图开发中...")
+        
+        # 统计周期选择
+        period = st.selectbox("统计周期", ["本周", "本月", "本年"], key="exercise_period")
+        
+        if period == "本周":
+            # 周统计
+            weekly_data = get_weekly_summary(date.today().isoformat())
+            avg_calories = get_average_calories(7)
+            avg_steps = get_average_steps(7)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("本周平均消耗", f"{avg_calories:.0f}", "kcal/天")
+            with col2:
+                st.metric("本周平均步数", f"{avg_steps:.0f}", "步/天")
+            
+            st.divider()
+            
+            # 每日卡路里消耗柱状图
+            if weekly_data:
+                df = pd.DataFrame(weekly_data)
+                # 转换日期格式为星期几
+                df['weekday'] = pd.to_datetime(df['date']).dt.day_name(locale='Chinese')
+                df['weekday_short'] = pd.to_datetime(df['date']).dt.strftime('%a')
+                
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=df['weekday'],
+                    y=df['calories'],
+                    name='卡路里消耗',
+                    marker_color='#3B82F6'
+                ))
+                fig.update_layout(
+                    title="每日卡路里消耗",
+                    xaxis_title="日期",
+                    yaxis_title="卡路里 (kcal)",
+                    height=300,
+                    xaxis_tickangle=-45
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 每日步数柱状图
+                fig2 = go.Figure()
+                fig2.add_trace(go.Bar(
+                    x=df['weekday'],
+                    y=df['steps'],
+                    name='步数',
+                    marker_color='#10B981'
+                ))
+                fig2.update_layout(
+                    title="每日步数统计",
+                    xaxis_title="日期",
+                    yaxis_title="步数",
+                    height=300,
+                    xaxis_tickangle=-45
+                )
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.info("本周暂无运动数据")
+        
+        elif period == "本月":
+            # 月统计
+            monthly_data = get_monthly_summary(date.today().year, date.today().month)
+            
+            if monthly_data:
+                df = pd.DataFrame(monthly_data)
+                total_calories = df['calories'].sum()
+                total_steps = df['steps'].sum()
+                total_distance = df['distance'].sum()
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("本月总消耗", f"{total_calories:.0f}", "kcal")
+                with col2:
+                    st.metric("本月总步数", f"{total_steps:,}", "步")
+                with col3:
+                    st.metric("本月总距离", f"{total_distance:.2f}", "公里")
+                
+                st.divider()
+                
+                # 每日柱状图
+                df['day'] = pd.to_datetime(df['date']).dt.day
+                
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=df['day'],
+                    y=df['calories'],
+                    name='卡路里消耗',
+                    marker_color='#F59E0B'
+                ))
+                fig.update_layout(
+                    title="本月每日卡路里消耗",
+                    xaxis_title="日期 (日)",
+                    yaxis_title="卡路里 (kcal)",
+                    height=300
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("本月暂无运动数据")
+        
+        else:
+            # 年统计
+            yearly_data = get_yearly_summary(date.today().year)
+            
+            if yearly_data:
+                df = pd.DataFrame(yearly_data)
+                df['month_name'] = df['month'].apply(lambda x: f"{int(x)}月")
+                
+                total_calories = df['calories'].sum()
+                total_steps = df['steps'].sum()
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("本年总消耗", f"{total_calories:.0f}", "kcal")
+                with col2:
+                    st.metric("本年总步数", f"{total_steps:,}", "步")
+                
+                st.divider()
+                
+                # 月度柱状图
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=df['month_name'],
+                    y=df['calories'],
+                    name='卡路里消耗',
+                    marker_color='#8B5CF6'
+                ))
+                fig.update_layout(
+                    title="本年月度卡路里消耗",
+                    xaxis_title="月份",
+                    yaxis_title="卡路里 (kcal)",
+                    height=300
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("本年暂无运动数据")
     
     with tab3:
-        st.markdown("#### 运动挑战")
-        st.info("挑战系统开发中...")
+        st.markdown("#### 运动类型统计")
+        
+        # 选择运动类型查看详细统计（带 emoji）
+        exercise_types_list = ["跑步", "走路", "骑行", "游泳"]
+        exercise_types_options = [f"{EXERCISE_INFO.get(t, {}).get('emoji', '🏃')} {t}" for t in exercise_types_list]
+        selected_with_emoji = st.selectbox("选择运动类型", exercise_types_options)
+        selected_type = selected_with_emoji.split(' ', 1)[-1]
+        
+        # 显示运动类型描述
+        exercise_info = EXERCISE_INFO.get(selected_type, {})
+        if exercise_info.get('description'):
+            st.info(f"💡 {exercise_info['description']}")
+        
+        stats = get_exercise_type_stats(selected_type, 30)
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("总次数", f"{stats['count']}", "次")
+        with col2:
+            st.metric("总时长", f"{stats['total_duration']}", "分钟")
+        with col3:
+            st.metric("总距离", f"{stats['total_distance']:.2f}", "公里")
+        with col4:
+            if stats['avg_pace'] > 0:
+                st.metric("平均配速", f"{stats['avg_pace']:.1f}", "min/km")
+            else:
+                st.metric("平均配速", "--", "min/km")
+        
+        st.divider()
+        
+        # 运动建议
+        st.markdown("#### 💡 运动建议")
+        tips = [
+            "每周至少进行150分钟中等强度运动",
+            "跑步前做好热身，避免运动损伤",
+            "运动后及时补充水分和蛋白质",
+            "游泳是全身运动，对关节压力小",
+            "骑行可以锻炼心肺功能和腿部肌肉",
+            "运动时注意心率，保持在适宜区间",
+            "运动后拉伸有助于肌肉恢复",
+            "循序渐进，不要过度运动"
+        ]
+        for tip in random.sample(tips, 3):
+            st.info(tip)
 
 
 def render_sleep_page():
     """渲染睡眠管理页面"""
+    from modules.sleep.sleep_tracker import (
+        SleepRecord, add_sleep_record, get_sleep_by_date, get_sleep_summary,
+        get_weekly_sleep_summary, get_monthly_sleep_summary,
+        get_average_sleep, get_average_quality, get_early_sleep_count,
+        get_sleep_regularity_score, get_recommended_sleep, get_sleep_advice,
+        SLEEP_TIPS, check_early_sleep
+    )
+    import plotly.graph_objects as go
+    import plotly.express as px
+    import pandas as pd
+    import random
+    
     st.title("😴 睡眠管理")
     
-    st.markdown("#### 睡眠记录")
+    # 获取用户年龄（用于建议睡眠时长）
+    user_age = st.session_state.get("user_age", 25)
+    recommended_sleep = get_recommended_sleep(user_age)
     
-    col1, col2 = st.columns(2)
+    # 今日睡眠汇总
+    today_summary = get_sleep_summary(date.today().isoformat())
+    
+    # 顶部指标卡片
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        bedtime = st.time_input("入睡时间", value=None)
-        wakeup_time = st.time_input("起床时间", value=None)
-    
+        st.metric("今日睡眠", f"{today_summary['duration']:.1f}", "小时")
     with col2:
-        deep_sleep = st.slider("深睡时长 (小时)", 0.0, 4.0, 1.5, 0.5)
-        quality = st.slider("睡眠质量", 1, 5, 3)
-    
-    if st.button("记录睡眠", type="primary"):
-        st.success("睡眠记录已添加！")
+        st.metric("建议时长", f"{recommended_sleep['min']}-{recommended_sleep['max']}", "小时")
+    with col3:
+        if today_summary['quality']:
+            st.metric("睡眠质量", f"{today_summary['quality']}", "分")
+        else:
+            st.metric("睡眠质量", "--", "分")
+    with col4:
+        if today_summary['early_sleep']:
+            st.metric("早睡打卡", "✅ 已打卡", "22:00前入睡")
+        else:
+            st.metric("早睡打卡", "❌ 未打卡", "22:00前入睡")
     
     st.divider()
     
-    st.markdown("#### 作息规律评分")
-    st.metric("7天规律得分", "--", "--")
-    st.caption("得分 = 100 - 7天就寝时间标准差 × 10")
+    tab1, tab2, tab3, tab4 = st.tabs(["📝 记录", "📊 统计", "💡 建议", "🌙 小贴士"])
+    
+    with tab1:
+        st.markdown("#### 睡眠记录")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            bedtime = st.time_input("入睡时间", value=None, key="bedtime_input", label_visibility="visible")
+            wakeup_time = st.time_input("起床时间", value=None, key="wakeup_input", label_visibility="visible")
+        
+        with col2:
+            deep_sleep = st.slider("深睡时长 (小时)", 0.0, 4.0, 1.5, 0.5)
+            quality = st.slider("睡眠质量", 1, 5, 3)
+            awakenings = st.number_input("醒来次数", min_value=0, value=0)
+        
+        notes = st.text_input("备注（可选）", placeholder="记录睡眠感受...")
+        
+        if st.button("➕ 记录睡眠", type="primary", use_container_width=True):
+            if bedtime and wakeup_time:
+                record = SleepRecord(
+                    date=date.today().isoformat(),
+                    bedtime=bedtime.strftime("%H:%M"),
+                    wakeup_time=wakeup_time.strftime("%H:%M"),
+                    deep_sleep=deep_sleep,
+                    quality=quality,
+                    awakenings=awakenings,
+                    notes=notes
+                )
+                if add_sleep_record(record):
+                    st.success("✅ 睡眠记录已添加！")
+                    st.rerun()
+                else:
+                    st.error("❌ 添加失败，请重试")
+            else:
+                st.warning("请选择入睡时间和起床时间")
+        
+        st.divider()
+        
+        # 早睡打卡提示
+        st.markdown("#### 🌙 早睡打卡")
+        early_count = get_early_sleep_count(7)
+        st.markdown(f"本周早睡打卡次数：**{early_count}/7**")
+        
+        # 检查今天是否已经早睡打卡
+        today_record = get_sleep_by_date(date.today().isoformat())
+        already_checked = False
+        if today_record:
+            already_checked = check_early_sleep(today_record.bedtime)
+        
+        if already_checked:
+            st.success("✅ 今日已完成早睡打卡！")
+        else:
+            if st.button("⏰ 立即打卡（22:00前入睡）", type="secondary"):
+                st.info("💡 提醒：请确保您在22:00前入睡，养成良好的作息习惯")
+                st.warning("⚠️ 打卡记录将在您记录今日睡眠时自动验证")
+        
+        if early_count >= 5:
+            st.success("🎉 本周早睡习惯良好！继续保持！")
+        elif early_count >= 3:
+            st.info("👍 本周早睡次数不错，继续努力！")
+        else:
+            st.warning("⚠️ 建议尝试22:00前入睡，养成早睡习惯")
+    
+    with tab2:
+        st.markdown("#### 睡眠统计")
+        
+        # 统计周期选择
+        period = st.selectbox("统计周期", ["本周", "本月"], key="sleep_period")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            avg_sleep = get_average_sleep(7 if period == "本周" else 30)
+            st.metric("平均睡眠时长", f"{avg_sleep:.1f}", "小时")
+        with col2:
+            avg_quality = get_average_quality(7 if period == "本周" else 30)
+            st.metric("平均睡眠质量", f"{avg_quality:.1f}", "分")
+        with col3:
+            regularity_score = get_sleep_regularity_score(7)
+            st.metric("作息规律评分", f"{regularity_score:.0f}", "分")
+        
+        st.divider()
+        
+        if period == "本周":
+            weekly_data = get_weekly_sleep_summary(date.today().isoformat())
+            if weekly_data:
+                df = pd.DataFrame(weekly_data)
+                # 转换日期格式为星期几
+                df['weekday'] = pd.to_datetime(df['date']).dt.day_name()
+                
+                # 睡眠时长柱状图
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=df['weekday'],
+                    y=df['duration'],
+                    name='睡眠时长',
+                    marker_color='#8B5CF6'
+                ))
+                # 添加建议睡眠范围线
+                fig.add_hrect(
+                    y0=recommended_sleep['min'],
+                    y1=recommended_sleep['max'],
+                    fillcolor="#10B981",
+                    opacity=0.2,
+                    annotation_text="建议睡眠范围"
+                )
+                fig.update_layout(
+                    title="本周睡眠时长统计",
+                    xaxis_title="日期",
+                    yaxis_title="时长 (小时)",
+                    height=300
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 睡眠质量折线图
+                if 'quality' in df.columns and df['quality'].notna().any():
+                    fig2 = go.Figure()
+                    fig2.add_trace(go.Scatter(
+                        x=df['weekday'],
+                        y=df['quality'],
+                        mode='lines+markers',
+                        name='睡眠质量',
+                        line=dict(color='#F59E0B', width=2)
+                    ))
+                    fig2.update_layout(
+                        title="本周睡眠质量趋势",
+                        xaxis_title="日期",
+                        yaxis_title="质量评分",
+                        height=250
+                    )
+                    st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.info("本周暂无睡眠数据")
+        
+        else:
+            monthly_data = get_monthly_sleep_summary(date.today().year, date.today().month)
+            if monthly_data:
+                df = pd.DataFrame(monthly_data)
+                
+                total_sleep = df['duration'].sum()
+                avg_monthly = df['duration'].mean()
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("本月总睡眠", f"{total_sleep:.1f}", "小时")
+                with col2:
+                    st.metric("本月日均", f"{avg_monthly:.1f}", "小时")
+                
+                st.divider()
+                
+                # 转换日期格式为日期数字（确保是整数）
+                df['day'] = pd.to_datetime(df['date']).dt.day.astype(int)
+                
+                # 月度睡眠时长柱状图
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=df['day'],
+                    y=df['duration'],
+                    name='睡眠时长',
+                    marker_color='#3B82F6'
+                ))
+                fig.add_hrect(
+                    y0=recommended_sleep['min'],
+                    y1=recommended_sleep['max'],
+                    fillcolor="#10B981",
+                    opacity=0.2,
+                    annotation_text="建议睡眠范围"
+                )
+                fig.update_layout(
+                    title="本月睡眠时长统计",
+                    xaxis_title="日期 (日)",
+                    yaxis_title="时长 (小时)",
+                    height=300,
+                    xaxis=dict(
+                        tickmode='array',
+                        tickvals=df['day'],
+                        ticktext=[f"{d}日" for d in df['day']]
+                    )
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("本月暂无睡眠数据")
+    
+    with tab3:
+        st.markdown("#### 睡眠建议")
+        
+        # 根据今日睡眠时长给出建议
+        if today_summary['duration'] > 0:
+            advice_list = get_sleep_advice(
+                today_summary['duration'],
+                recommended_sleep['min'],
+                recommended_sleep['max']
+            )
+            
+            if today_summary['duration'] < recommended_sleep['min']:
+                st.warning(f"⚠️ 今日睡眠不足，建议睡眠 {recommended_sleep['min']}-{recommended_sleep['max']} 小时")
+            elif today_summary['duration'] > recommended_sleep['max']:
+                st.info(f"ℹ️ 今日睡眠偏长，建议睡眠 {recommended_sleep['min']}-{recommended_sleep['max']} 小时")
+            else:
+                st.success(f"✅ 今日睡眠时长理想，继续保持！")
+            
+            st.divider()
+            
+            st.markdown("##### 💡 改善建议")
+            for advice in advice_list:
+                st.markdown(f"- {advice}")
+        else:
+            st.info("请先记录今日睡眠，获取个性化建议")
+        
+        st.divider()
+        
+        # 作息规律建议
+        regularity_score = get_sleep_regularity_score(7)
+        st.markdown("##### 📊 作息规律分析")
+        if regularity_score >= 80:
+            st.success(f"作息规律评分：{regularity_score:.0f}分 - 非常规律，继续保持！")
+        elif regularity_score >= 60:
+            st.info(f"作息规律评分：{regularity_score:.0f}分 - 较为规律，可以进一步优化")
+        elif regularity_score > 0:
+            st.warning(f"作息规律评分：{regularity_score:.0f}分 - 作息不够规律，建议固定入睡时间")
+        else:
+            st.info("暂无足够数据计算作息规律评分")
+    
+    with tab4:
+        st.markdown("#### 睡眠养生小贴士")
+        
+        # 随机显示3条小贴士
+        selected_tips = random.sample(SLEEP_TIPS, 5)
+        for i, tip in enumerate(selected_tips, 1):
+            st.markdown(f"**{i}.** {tip}")
+        
+        st.divider()
+        
+        # 睡眠知识
+        st.markdown("##### 📚 睡眠知识")
+        knowledge = [
+            "**深睡眠**：占总睡眠的20-25%，是身体恢复的关键阶段",
+            "**浅睡眠**：占总睡眠的50-60%，是入睡和深睡眠的过渡",
+            "**REM睡眠**：占总睡眠的20-25%，与记忆和情绪相关",
+            "**睡眠周期**：每个周期约90分钟，一晚经历4-6个周期",
+            "**最佳入睡时间**：22:00-23:00是最佳入睡时段"
+        ]
+        for k in knowledge:
+            st.markdown(k)
 
 
 def render_mood_page():
     """渲染情绪日记页面"""
+    import random
+    from utils.quotes import LIFE_QUOTES
+    
     st.title("💭 情绪日记")
+    
+    # 显示每日名言
+    quote = random.choice(LIFE_QUOTES)
+    st.markdown(f"### ✨ {quote}")
     
     st.markdown("#### 今日心情")
     

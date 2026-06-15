@@ -1,0 +1,171 @@
+# ============================================
+# 项目配置文件 - 你今天活得怎么样？
+# ============================================
+
+[project]
+name = "你今天活得怎么样？"
+version = "1.0.0"
+description = "全生活操作系统 - 第二大脑 + 私人生活教练"
+
+[database]
+# 数据库路径（相对于项目根目录）
+path = "data/life_tracker.db"
+# 是否启用加密
+encrypted = false
+# 加密密钥（仅加密启用时使用，base64编码的32字节密钥）
+encryption_key = ""
+
+[deepseek]
+# DeepSeek API 配置
+api_key = ""
+base_url = "https://api.deepseek.com"
+model = "deepseek-chat"
+timeout = 10
+max_retries = 1
+
+[app]
+# 应用配置
+host = "0.0.0.0"
+port = 8501
+debug = false
+# 语言设置 (zh/en)
+language = "zh"
+# 是否启用匿名模式
+anonymous_mode = false
+
+[theme]
+# 默认主题 (twilight/deep_sea/sakura/night)
+default = "twilight"
+# 是否跟随系统深色模式
+auto_dark_mode = true
+
+[theme.colors]
+# 暮光紫主题（默认）
+twilight_primary = "#8B5CF6"
+twilight_secondary = "#A78BFA"
+twilight_background = "#1F1F38"
+twilight_surface = "#2D2D4A"
+twilight_text = "#FFFFFF"
+twilight_accent = "#F472B6"
+
+# 深海蓝主题
+deep_sea_primary = "#0EA5E9"
+deep_sea_secondary = "#38BDF8"
+deep_sea_background = "#0C1222"
+deep_sea_surface = "#1E293B"
+deep_sea_text = "#F8FAFC"
+deep_sea_accent = "#22D3EE"
+
+# 樱花粉主题
+sakura_primary = "#EC4899"
+sakura_secondary = "#F472B6"
+sakura_background = "#1F1F2E"
+sakura_surface = "#2D2D44"
+sakura_text = "#FFFFFF"
+sakura_accent = "#FB7185"
+
+# 暗夜黑主题
+night_primary = "#6366F1"
+night_secondary = "#818CF8"
+night_background = "#09090B"
+night_surface = "#18181B"
+night_text = "#FAFAFA"
+night_accent = "#A78BFA"
+
+[fonts]
+# 字体配置
+main_font = "Inter, 苹方, sans-serif"
+mono_font = "JetBrains Mono, Consolas, monospace"
+chinese_font = "苹方, Microsoft YaHei, sans-serif"
+
+[ui]
+# 移动端断点
+mobile_breakpoint = 768
+# 卡片圆角
+card_border_radius = 16
+# 阴影效果
+card_shadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)"
+# 动画时长（秒）
+transition_duration = 0.3
+# 骨架屏加载动画
+skeleton_animation = true
+
+[nutrition]
+# WHO 推荐每日营养摄入
+calories = 2000
+protein = 50  # 克
+fat = 65     # 克
+carbs = 300  # 克
+fiber = 25   # 克
+sugar = 50   # 克
+sodium = 2000 # 毫克
+# 异常提醒阈值
+calories_warning = 5000
+high_oil_days_threshold = 2
+
+[exercise]
+# 默认步数目标
+default_step_goal = 10000
+# 运动消耗触发补水提醒阈值（千卡）
+hydration_trigger_kcal = 300
+
+[exercise.met]
+# 代谢当量默认值 (MET)
+walking = 3.5
+running = 9.8
+cycling = 7.5
+swimming = 8.0
+yoga = 3.0
+strength = 6.0
+
+[sleep]
+# 默认睡眠时长（小时）
+default_sleep_duration = 8
+# 作息规律判定阈值
+regularity_threshold = 80
+# 就寝提醒提前量（分钟）
+bedtime_reminder_minutes = 30
+
+[mood]
+# 情绪强度范围
+min_intensity = 1
+max_intensity = 5
+# 情绪标签
+labels = ["开心", "平静", "疲惫", "焦虑", "悲伤", "愤怒", "兴奋", "迷茫"]
+
+[scoring]
+# 生活能量值权重
+[scoring.weights]
+diet = 0.25
+exercise = 0.25
+sleep = 0.25
+mood = 0.15
+expense = 0.10
+# 异常阈值
+low_energy_threshold = 40
+
+[expense]
+# 预算超支警告百分比
+overspend_warning_percent = 10
+# 支持的账单格式
+supported_bill_formats = ["wechat", "alipay"]
+# 文件大小限制（MB）
+max_file_size_mb = 5
+
+[backup]
+# WebDAV 配置
+webdav_enabled = false
+webdav_url = ""
+webdav_username = ""
+webdav_password = ""
+# 加密导出
+encrypted_export = true
+# 导出格式
+export_format = "json"
+
+[log]
+# 日志配置
+level = "INFO"
+path = "log/app.log"
+max_size_mb = 10
+backup_count = 5

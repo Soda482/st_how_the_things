@@ -1,0 +1,6 @@
+2026-06-15 15:29:21 - life_tracker - ERROR - 应用错误: list.index(x): x not in list
+2026-06-15 15:29:28 - life_tracker - ERROR - 应用错误: list.index(x): x not in list
+2026-06-15 15:31:53 - life_tracker - ERROR - 应用错误: list.index(x): x not in list
+2026-06-15 15:31:54 - life_tracker - ERROR - 应用错误: list.index(x): x not in list
+2026-06-15 15:32:01 - life_tracker - ERROR - 应用错误: list.index(x): x not in list
+2026-06-15 15:55:28 - life_tracker - ERROR - 应用错误: unsupported operand type(s) for -: 'NoneType' and 'int'

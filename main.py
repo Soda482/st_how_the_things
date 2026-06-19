@@ -840,25 +840,25 @@ def render_diet_page():
                             with edit_col2:
                                 edit_calories = st.number_input(
                                     "热量 (kcal)", 
-                                    min_value=0,
+                                    min_value=0.0,
                                     value=float(record.calories),
                                     key=f"edit_cal_{record.id}"
                                 )
                                 edit_protein = st.number_input(
                                     "蛋白质 (g)", 
-                                    min_value=0,
+                                    min_value=0.0,
                                     value=float(record.protein),
                                     key=f"edit_pro_{record.id}"
                                 )
                                 edit_fat = st.number_input(
                                     "脂肪 (g)", 
-                                    min_value=0,
+                                    min_value=0.0,
                                     value=float(record.fat),
                                     key=f"edit_fat_{record.id}"
                                 )
                                 edit_carbs = st.number_input(
                                     "碳水 (g)", 
-                                    min_value=0,
+                                    min_value=0.0,
                                     value=float(record.carbs),
                                     key=f"edit_carbs_{record.id}"
                                 )

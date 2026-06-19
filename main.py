@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from utils.config_loader import load_config, get_config
 from utils.logger import setup_logger
 from database import init_db, check_connection
-from modules.diet.diet_records import DietRecord, add_diet_record, get_diet_by_date, get_diet_summary
+from modules.diet.diet_records import DietRecord, add_diet_record, get_diet_by_date, get_diet_summary, delete_diet_record, update_diet_record
 from modules.diet.enhanced_nutrition_calculator import EnhancedNutritionCalculator
 from modules.diet.food_database import search_food, get_food_by_name, get_food_categories, get_foods_by_category, calculate_nutrition, init_food_database
 from modules.exercise.exercise_tracker import get_exercise_by_date, get_exercise_summary, get_today_steps, get_today_calories, EXERCISE_INFO
@@ -772,6 +772,129 @@ def render_diet_page():
                     st.rerun()
                 else:
                     st.error("添加失败，请重试")
+        
+        st.divider()
+        
+        # 今日记录管理
+        st.markdown("#### 📋 今日记录管理")
+        today_records = get_diet_by_date(get_beijing_date().isoformat())
+        
+        if today_records:
+            meal_type_map_reverse = {"breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐", "snack": "加餐"}
+            
+            for record in today_records:
+                with st.container():
+                    col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
+                    
+                    with col1:
+                        meal_name = meal_type_map_reverse.get(record.meal_type, record.meal_type)
+                        st.markdown(f"**{meal_name}**: {record.food_name}")
+                        st.caption(f"分量: {record.quantity}{record.unit}")
+                    
+                    with col2:
+                        st.markdown(f"🔥 {record.calories:.0f} kcal")
+                        st.caption(f"🥚 {record.protein:.1f}g | 🥑 {record.fat:.1f}g | 🍞 {record.carbs:.1f}g")
+                    
+                    with col3:
+                        # 删除按钮
+                        if st.button("🗑️", key=f"del_{record.id}", help="删除此记录"):
+                            if delete_diet_record(record.id):
+                                st.success("已删除")
+                                st.rerun()
+                            else:
+                                st.error("删除失败")
+                    
+                    with col4:
+                        # 编辑按钮（展开编辑区域）
+                        if st.button("✏️", key=f"edit_btn_{record.id}", help="编辑此记录"):
+                            st.session_state[f"editing_{record.id}"] = not st.session_state.get(f"editing_{record.id}", False)
+                            st.rerun()
+                    
+                    # 编辑区域（点击编辑按钮后展开）
+                    if st.session_state.get(f"editing_{record.id}", False):
+                        with st.container():
+                            st.markdown("---")
+                            st.markdown("**编辑记录**")
+                            
+                            edit_col1, edit_col2 = st.columns(2)
+                            
+                            with edit_col1:
+                                edit_meal = st.selectbox(
+                                    "餐次", 
+                                    ["早餐", "午餐", "晚餐", "加餐"],
+                                    index=["早餐", "午餐", "晚餐", "加餐"].index(meal_name),
+                                    key=f"edit_meal_{record.id}"
+                                )
+                                edit_food_name = st.text_input(
+                                    "食物名称", 
+                                    value=record.food_name,
+                                    key=f"edit_food_{record.id}"
+                                )
+                                edit_quantity = st.number_input(
+                                    "分量", 
+                                    min_value=0.1,
+                                    value=float(record.quantity),
+                                    key=f"edit_qty_{record.id}"
+                                )
+                            
+                            with edit_col2:
+                                edit_calories = st.number_input(
+                                    "热量 (kcal)", 
+                                    min_value=0,
+                                    value=float(record.calories),
+                                    key=f"edit_cal_{record.id}"
+                                )
+                                edit_protein = st.number_input(
+                                    "蛋白质 (g)", 
+                                    min_value=0,
+                                    value=float(record.protein),
+                                    key=f"edit_pro_{record.id}"
+                                )
+                                edit_fat = st.number_input(
+                                    "脂肪 (g)", 
+                                    min_value=0,
+                                    value=float(record.fat),
+                                    key=f"edit_fat_{record.id}"
+                                )
+                                edit_carbs = st.number_input(
+                                    "碳水 (g)", 
+                                    min_value=0,
+                                    value=float(record.carbs),
+                                    key=f"edit_carbs_{record.id}"
+                                )
+                            
+                            save_col, cancel_col = st.columns(2)
+                            
+                            with save_col:
+                                if st.button("💾 保存修改", type="primary", key=f"save_{record.id}"):
+                                    meal_type_map = {"早餐": "breakfast", "午餐": "lunch", "晚餐": "dinner", "加餐": "snack"}
+                                    updated_record = DietRecord(
+                                        id=record.id,
+                                        date=record.date,
+                                        meal_type=meal_type_map[edit_meal],
+                                        food_name=edit_food_name,
+                                        calories=edit_calories,
+                                        protein=edit_protein,
+                                        fat=edit_fat,
+                                        carbs=edit_carbs,
+                                        quantity=edit_quantity,
+                                        unit=record.unit
+                                    )
+                                    if update_diet_record(updated_record):
+                                        st.success("修改已保存！")
+                                        st.session_state[f"editing_{record.id}"] = False
+                                        st.rerun()
+                                    else:
+                                        st.error("修改失败")
+                            
+                            with cancel_col:
+                                if st.button("❌ 取消", key=f"cancel_{record.id}"):
+                                    st.session_state[f"editing_{record.id}"] = False
+                                    st.rerun()
+                            
+                            st.markdown("---")
+        else:
+            st.info("今日暂无饮食记录")
     
     with tab2:
         st.markdown("#### 📊 今日营养统计")
@@ -1463,9 +1586,9 @@ def render_exercise_page():
             # 每日卡路里消耗柱状图
             if weekly_data:
                 df = pd.DataFrame(weekly_data)
-                # 转换日期格式为星期几
-                df['weekday'] = pd.to_datetime(df['date']).dt.day_name(locale='Chinese')
-                df['weekday_short'] = pd.to_datetime(df['date']).dt.strftime('%a')
+                # 转换日期格式为星期几（兼容不同系统）
+                weekday_map = {0: '周一', 1: '周二', 2: '周三', 3: '周四', 4: '周五', 5: '周六', 6: '周日'}
+                df['weekday'] = pd.to_datetime(df['date']).dt.dayofweek.map(weekday_map)
                 
                 fig = go.Figure()
                 fig.add_trace(go.Bar(
@@ -1756,8 +1879,9 @@ def render_sleep_page():
             weekly_data = get_weekly_sleep_summary(get_beijing_date().isoformat())
             if weekly_data:
                 df = pd.DataFrame(weekly_data)
-                # 转换日期格式为星期几
-                df['weekday'] = pd.to_datetime(df['date']).dt.day_name()
+                # 转换日期格式为星期几（兼容不同系统）
+                weekday_map = {0: '周一', 1: '周二', 2: '周三', 3: '周四', 4: '周五', 5: '周六', 6: '周日'}
+                df['weekday'] = pd.to_datetime(df['date']).dt.dayofweek.map(weekday_map)
                 
                 # 睡眠时长柱状图
                 fig = go.Figure()

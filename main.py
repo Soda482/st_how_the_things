@@ -581,10 +581,24 @@ def render_diet_page():
             st.rerun()
     
     with col2:
-        st.metric("今日摄入", "0", "0")
+        today_summary = get_diet_summary(get_beijing_date().isoformat())
+        today_calories = today_summary.get("total_calories", 0)
+        st.metric("今日摄入", f"{today_calories:.0f} kcal", "")
     
     with col3:
-        st.metric("剩余额度", "0", "0")
+        user_weight = st.session_state.get("user_weight", 70)
+        user_height = st.session_state.get("user_height", 170)
+        user_age = st.session_state.get("user_age", 25)
+        user_gender = st.session_state.get("user_gender", "男")
+        calculator = EnhancedNutritionCalculator(
+            weight_loss_mode=st.session_state.weight_loss_mode,
+            user_weight=user_weight,
+            user_height=user_height,
+            user_age=user_age,
+            user_gender=user_gender
+        )
+        remaining = calculator.recommended["calories"] - today_calories
+        st.metric("剩余额度", f"{remaining:.0f} kcal", "")
     
     st.divider()
     

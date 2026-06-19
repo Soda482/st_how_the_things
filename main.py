@@ -40,11 +40,16 @@ with open("css/styles.css", "r", encoding="utf-8") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 
+def get_beijing_date():
+    """获取北京时间的日期（YYYY-MM-DD）"""
+    return get_beijing_time().date()
+
+
 def init_session_state():
     """初始化会话状态"""
     if "initialized" not in st.session_state:
         st.session_state.initialized = True
-        st.session_state.current_date = date.today().isoformat()
+        st.session_state.current_date = get_beijing_date().isoformat()
         st.session_state.theme = get_config("theme.default", "purple")
         st.session_state.anonymous_mode = get_config("app.anonymous_mode", False)
 
@@ -217,9 +222,17 @@ def load_custom_css():
     st.markdown(theme_css, unsafe_allow_html=True)
 
 
+def get_beijing_time():
+    """获取北京时间（UTC+8）"""
+    from datetime import datetime, timezone, timedelta
+    beijing_tz = timezone(timedelta(hours=8))
+    return datetime.now(beijing_tz)
+
+
 def get_ai_greeting():
-    """获取 AI 问候语"""
-    hour = datetime.now().hour
+    """获取 AI 问候语 - 使用北京时间"""
+    now = get_beijing_time()
+    hour = now.hour
     
     if 5 <= hour < 12:
         greeting = "早上好！今天也要元气满满哦 ☀️"
@@ -232,7 +245,9 @@ def get_ai_greeting():
     else:
         greeting = "夜深了，早点休息吧 🌟"
     
-    return greeting
+    time_str = now.strftime("%H:%M")
+    date_str = now.strftime("%Y年%m月%d日")
+    return f"{greeting}（{date_str} {time_str}）"
 
 
 def main():
@@ -348,8 +363,8 @@ def render_dashboard():
     st.title("🌟 你今天活得怎么样？")
     st.markdown(f"**{get_ai_greeting()}**")
     
-    # 获取今日日期
-    today = date.today()
+    # 获取今日日期（北京时间）
+    today = get_beijing_date()
     today_str = today.isoformat()
     
     # 日期选择器
@@ -686,7 +701,7 @@ def render_diet_page():
             with col_btn1:
                 if st.button("➕ 添加记录", type="primary", use_container_width=True):
                     record = DietRecord(
-                        date=date.today().isoformat(),
+                        date=get_beijing_date().isoformat(),
                         meal_type=meal_type_map[meal_type],
                         food_name=food["food_name"],
                         food_id=food["id"],
@@ -730,7 +745,7 @@ def render_diet_page():
             
             if st.button("添加记录", type="primary"):
                 record = DietRecord(
-                    date=date.today().isoformat(),
+                    date=get_beijing_date().isoformat(),
                     meal_type=meal_type_map[meal_type],
                     food_name=food_name,
                     calories=calories,
@@ -762,8 +777,8 @@ def render_diet_page():
             user_gender=user_gender
         )
         
-        # 获取今日数据
-        today = date.today().isoformat()
+        # 获取今日数据（北京时间）
+        today = get_beijing_date().isoformat()
         daily_summary = get_diet_summary(today)
         diet_records = get_diet_by_date(today)
         
@@ -1049,7 +1064,7 @@ def render_expense_page():
         if st.button("记一笔", type="primary"):
             if amount > 0:
                 record = ExpenseRecord(
-                    date=date.today().isoformat(),
+                    date=get_beijing_date().isoformat(),
                     amount=amount,
                     category=category,
                     description=description,
@@ -1066,10 +1081,10 @@ def render_expense_page():
     with tab2:
         st.markdown("#### 消费统计")
         
-        # 选择统计时间范围
+        # 选择统计时间范围（北京时间）
         stat_type = st.radio("统计维度", ["周", "月", "年"], horizontal=True)
         
-        today = date.today()
+        today = get_beijing_date()
         
         if stat_type == "周":
             weekly_data = get_weekly_summary(today.isoformat())
@@ -1317,8 +1332,8 @@ def render_exercise_page():
     # 获取用户体重（用于计算热量）
     user_weight = st.session_state.get("user_weight", 70)
     
-    # 今日运动汇总
-    today_summary = get_exercise_summary(date.today().isoformat())
+    # 今日运动汇总（北京时间）
+    today_summary = get_exercise_summary(get_beijing_date().isoformat())
     
     # 顶部指标卡片
     col1, col2, col3, col4 = st.columns(4)
@@ -1374,7 +1389,7 @@ def render_exercise_page():
         
         if st.button("➕ 记录运动", type="primary", use_container_width=True):
             record = ExerciseRecord(
-                date=date.today().isoformat(),
+                date=get_beijing_date().isoformat(),
                 exercise_type=exercise_type,
                 duration=duration,
                 calories=calories,
@@ -1390,9 +1405,9 @@ def render_exercise_page():
         
         st.divider()
         
-        # 今日运动记录列表
+        # 今日运动记录列表（北京时间）
         st.markdown("#### 今日运动记录")
-        today_records = get_exercise_by_date(date.today().isoformat())
+        today_records = get_exercise_by_date(get_beijing_date().isoformat())
         if today_records:
             for record in today_records:
                 with st.container():
@@ -1418,8 +1433,8 @@ def render_exercise_page():
         period = st.selectbox("统计周期", ["本周", "本月", "本年"], key="exercise_period")
         
         if period == "本周":
-            # 周统计
-            weekly_data = get_weekly_summary(date.today().isoformat())
+            # 周统计（北京时间）
+            weekly_data = get_weekly_summary(get_beijing_date().isoformat())
             avg_calories = get_average_calories(7)
             avg_steps = get_average_steps(7)
             
@@ -1474,8 +1489,9 @@ def render_exercise_page():
                 st.info("本周暂无运动数据")
         
         elif period == "本月":
-            # 月统计
-            monthly_data = get_monthly_summary(date.today().year, date.today().month)
+            # 月统计（北京时间）
+            beijing_now = get_beijing_time()
+            monthly_data = get_monthly_summary(beijing_now.year, beijing_now.month)
             
             if monthly_data:
                 df = pd.DataFrame(monthly_data)
@@ -1514,8 +1530,9 @@ def render_exercise_page():
                 st.info("本月暂无运动数据")
         
         else:
-            # 年统计
-            yearly_data = get_yearly_summary(date.today().year)
+            # 年统计（北京时间）
+            beijing_now = get_beijing_time()
+            yearly_data = get_yearly_summary(beijing_now.year)
             
             if yearly_data:
                 df = pd.DataFrame(yearly_data)
@@ -1617,8 +1634,8 @@ def render_sleep_page():
     user_age = st.session_state.get("user_age", 25)
     recommended_sleep = get_recommended_sleep(user_age)
     
-    # 今日睡眠汇总
-    today_summary = get_sleep_summary(date.today().isoformat())
+    # 今日睡眠汇总（北京时间）
+    today_summary = get_sleep_summary(get_beijing_date().isoformat())
     
     # 顶部指标卡片
     col1, col2, col3, col4 = st.columns(4)
@@ -1659,7 +1676,7 @@ def render_sleep_page():
         if st.button("➕ 记录睡眠", type="primary", use_container_width=True):
             if bedtime and wakeup_time:
                 record = SleepRecord(
-                    date=date.today().isoformat(),
+                    date=get_beijing_date().isoformat(),
                     bedtime=bedtime.strftime("%H:%M"),
                     wakeup_time=wakeup_time.strftime("%H:%M"),
                     deep_sleep=deep_sleep,
@@ -1682,8 +1699,8 @@ def render_sleep_page():
         early_count = get_early_sleep_count(7)
         st.markdown(f"本周早睡打卡次数：**{early_count}/7**")
         
-        # 检查今天是否已经早睡打卡
-        today_record = get_sleep_by_date(date.today().isoformat())
+        # 检查今天是否已经早睡打卡（北京时间）
+        today_record = get_sleep_by_date(get_beijing_date().isoformat())
         already_checked = False
         if today_record:
             already_checked = check_early_sleep(today_record.bedtime)
@@ -1722,7 +1739,7 @@ def render_sleep_page():
         st.divider()
         
         if period == "本周":
-            weekly_data = get_weekly_sleep_summary(date.today().isoformat())
+            weekly_data = get_weekly_sleep_summary(get_beijing_date().isoformat())
             if weekly_data:
                 df = pd.DataFrame(weekly_data)
                 # 转换日期格式为星期几
@@ -1773,7 +1790,8 @@ def render_sleep_page():
                 st.info("本周暂无睡眠数据")
         
         else:
-            monthly_data = get_monthly_sleep_summary(date.today().year, date.today().month)
+            beijing_now = get_beijing_time()
+            monthly_data = get_monthly_sleep_summary(beijing_now.year, beijing_now.month)
             if monthly_data:
                 df = pd.DataFrame(monthly_data)
                 
@@ -1930,7 +1948,7 @@ def render_mood_page():
         
         # 保存按钮
         if st.button("💾 保存心情", type="primary", use_container_width=True):
-            today = datetime.now().strftime("%Y-%m-%d")
+            today = get_beijing_date().isoformat()
             try:
                 with get_connection() as conn:
                     cursor = conn.cursor()
@@ -1961,10 +1979,10 @@ def render_mood_page():
     with tab2:
         st.markdown("#### 📅 情绪日历")
         
-        # 选择月份
+        # 选择月份（北京时间）
         col1, col2 = st.columns([1, 4])
         with col1:
-            now = datetime.now()
+            now = get_beijing_time()
             selected_year = st.selectbox("年份", range(now.year-2, now.year+1), index=0)
             selected_month = st.selectbox("月份", range(1, 13), index=now.month-1)
         
